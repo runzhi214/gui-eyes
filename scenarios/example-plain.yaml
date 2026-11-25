@@ -1,0 +1,9 @@
+name: example-plain
+description: 通用示例:plain target(auth none)采集任意页面并断言标题文案
+target: { baseUrl: "https://example.com/", auth: none }
+steps:
+  - goto: /
+  - wait: 1000
+  - shot: example
+asserts:
+  - textVisible: "Example Domain"

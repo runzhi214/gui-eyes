@@ -1,0 +1,28 @@
+{
+  "name": "gui-eyes",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "通用 web GUI 采集引擎：持久鉴权会话 + 导航 + 截图/DOM/console/network 观测 + 断言。契约见 REQUIREMENTS.md。",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "bin": {
+    "gui-eyes": "./bin/gui-eyes.js"
+  },
+  "dependencies": {
+    "playwright": "1.62.1",
+    "yaml": "^2.9.1"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "pnpm": {
+    "ignoredBuiltDependencies": [
+      "playwright"
+    ]
+  }
+}

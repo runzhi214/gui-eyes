@@ -1,0 +1,20 @@
+{
+  "auth_mode": "none",
+  "final_url": "http://127.0.0.1:3080/",
+  "title": "",
+  "steps": [
+    {
+      "action": "dom",
+      "arg": "",
+      "ok": true
+    }
+  ],
+  "console_errors": [
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  "failed_requests": [
+    "HTTP 401 http://127.0.0.1:3080/"
+  ],
+  "body_text_head": "dsh web authentication required; reopen the URL printed by dsh web.\n",
+  "shots": []
+}

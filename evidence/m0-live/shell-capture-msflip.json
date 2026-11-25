@@ -1,0 +1,33 @@
+{
+  "check": [
+    {
+      "item": "进入明细列表(服务筛面存在)",
+      "ok": true
+    },
+    {
+      "item": "默认全勾(10/10)",
+      "ok": true,
+      "detail": "已选 10 / 10 项"
+    },
+    {
+      "item": "全选态无「全选」按钮(无需)",
+      "ok": true
+    },
+    {
+      "item": "取消一项后按钮显 N 项",
+      "ok": true,
+      "detail": "服务 9 项\n▾"
+    },
+    {
+      "item": "出现「全选」按钮",
+      "ok": true
+    },
+    {
+      "item": "全选后回「全部服务」",
+      "ok": true,
+      "detail": "全部服务\n▾"
+    }
+  ],
+  "failed": 0,
+  "shot": "/home/x30070689/projects/dsh-gui-eyes/shots/ms-flip.png"
+}

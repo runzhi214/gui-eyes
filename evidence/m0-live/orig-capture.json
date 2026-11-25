@@ -1,0 +1,17 @@
+{
+  "auth_mode": "cookie",
+  "final_url": "http://127.0.0.1:3080/",
+  "title": "AI Shell",
+  "clicked_workbench": true,
+  "console_errors": [
+    "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  ],
+  "failed_requests": [
+    "HTTP 400 http://127.0.0.1:3080/api/aishell/permission"
+  ],
+  "body_text_head": "新会话\n插件\n自动化任务\nLanding Zone 工作台\n更多\n工作区\ndsh-traj-anonymizer\ndsh-tool-forge\ndeepseek-harness\ndsh-gui-eyes\ndsh-gitcode-mr-tools\ndsh-workspace-tool-scope\ndsh-workbench-db-tools\nLanding Zone 搭建\nlandingzone-workbench\n新会话\nResourcePage 404 排查与进程重启\n54分钟\n临时AKSK导入Terraform资源状态\n20天\n资源管理页面改版设计计划\n20天\n通过RMS查询OBS中的aishell\n21天\nprojects\naishell-dsh-plugins\n默认工作区\n设置\nLanding Zone Workbench\n资源管理\n费用管理\n资源管理\n从规模洞察到归属治理:资源增长只有落在明确的归属上,才是可控的资产\nes_hwcddbdt_AiAgents_team\n数据截止 2026-11-25 16:07:07\n口径\n配置项\n刷新\n\n资源总数\n?\n\n9 ▲ 2\n\n9 个服务无权访问\n\nIaC 纳管率\n\n100%\n\n项目归集率\n\n0%\n\n资源标签\n\n建设中\n\n标签数据就绪后开放\n\n资源明细\n\n全部服务\n▾\n全部类型\n▾\n全部区域\n▾\n全部状态\n▾\n全部项目\n▾\n资源 ",
+  "shots": [
+    "/home/x30070689/projects/dsh-gui-eyes/shots/root-1795598684224.png",
+    "/home/x30070689/projects/dsh-gui-eyes/shots/workbench-1795598689424.png"
+  ]
+}

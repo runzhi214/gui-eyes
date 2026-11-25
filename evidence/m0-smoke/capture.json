@@ -1,0 +1,4 @@
+{
+  "error": "NO_TOKEN",
+  "hint": "把 dsh web 终端里的完整 URL 写入 ~/.dsh-gui-token(一行)"
+}
