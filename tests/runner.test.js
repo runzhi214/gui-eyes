@@ -83,7 +83,7 @@ describe('runStep primitives', () => {
   })
   it('click builds locators for text, role and selector specs', async () => {
     const page = makePage()
-    await runStep(page, { click: { text: '资源管理', exact: true } }, ctx())
+    await runStep(page, { click: { text: '目标按钮', exact: true } }, ctx())
     await runStep(page, { click: { role: 'button', name: '配置项' } }, ctx())
     await runStep(page, { click: { selector: '[class*=rankRow]' } }, ctx())
     await runStep(page, { click: '裸文本' }, ctx())

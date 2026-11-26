@@ -156,6 +156,8 @@ stdio MCP server，工具 7 个：`gui_open`（target/baseUrl/force，建立/复
 
 描述层（issue#12，2026-11-26 重写）：每条描述含 When-to-use 意图词（验证/验收/回归）与典型验证链 `gui_open → gui_click/gui_type → gui_assert → gui_shot`；gui_dom/gui_assert 声明可见性边界（主文档 innerText 不含 iframe/shadow 文本）；gui_type 声明 ProseMirror `fill("")` 清空无效的已知坑。7 个工具描述均声明：**GUI 操作以真实用户身份生效，不受会话权限模式约束**。工具描述是会话启动时快照——引擎更新后需新会话才触达。
 
+server instructions（2026-11-26 多模态分诊）：MCP server 以 SDK `options.instructions` 随连接下发服务器级指导（`src/server/instructions.js`），与 skill 双写同口径，核心内容 = 多模态分诊链——文本会话需判读截图时，`subagent` 显式传 provider+model 选多模态路由（先 `list_subagent_models` 枚举），让子代理截图+读图带回结论。注意 SDK 契约：`McpServer(serverInfo, options)`，instructions 属 options——放错位置静默不下发（回归测试已钉死）。
+
 配套（issue#13）：`skills/gui-verification/SKILL.md` 为 skill 源文件（触发词与工具描述同口径），安装到 `~/.agents/skills/gui-verification/`（dsh filesystem skill provider 的 user-agents 根，热加载免重启）；M3 市场化时再升级为 bundle 内置 provider。实现优先官方 `@modelcontextprotocol/sdk`，冲突才手写 JSON-RPC。
 
 ## 5. 环境事实与已踩坑（勿再考古）
@@ -246,6 +248,16 @@ dsh-gui-eyes/
 - **#13 skill 召回（低，成立）**：新增 `skills/gui-verification/SKILL.md`（frontmatter 触发词 + 验证链/边界/坑/安全，与工具描述同口径）；部署走 dsh filesystem skill provider 的 user-agents 根（`~/.agents/skills/`，热加载）；「随 bundle 贡献 skill」需要真插件 provider，推迟到 M3。
 - 结构伴随：getByText 引擎使 textMatches 无匹配元素从「执行异常」归因修正为语义性「无匹配元素」；HTTP_400 旧探测语义保留。
 - **README 重构（2026-11-26 用户拍板文档规范，长期生效）**：README 只写「软件是干什么的、怎么用、怎么接入、有哪些缺陷、开源协议」；技术路线与实现方案不进 README，最多留一个链接指向本文件（本文件即仓的契约/技术文档）。原 README 的 M0–M3 路线段、目录树、设计锚点引语随之移除。
+
+### 多模态分诊指导链（2026-11-26 用户拍板：域内闭环，替代设置面板方案）
+
+用户最初设想「设置面板配 subagent 默认多模态模型」，经机制调研后改向：dsh 已开 modelSelection/modelDiscovery（subagent 工具 provider+model 参数 + list_subagent_models 枚举 + 许可清单），缺的只是 agent 知道这么做——**无需新插件/设置面板**，在 gui-eyes 域内以指导链闭环：
+
+- `src/server/instructions.js`：MCP server instructions 随连接进 system prompt（SDK options.instructions；放 serverInfo 里会静默丢失，回归测试 tests/server-instructions.test.js 钉死）。
+- `skills/gui-verification/SKILL.md` 增「多模态分诊」段（双写同口径）：截图留证任何会话可做；判读内容才需多模态子代理。
+- README 增补同口径段。
+- 活体验证（evidence/vision-triage-2026-11-26/）：文本主会话 → 子代理 route `baidu/deepseek-v4.1-flash-1017` → gui_shot 截设置页 → read_image 真实判读成功（7 标签页/9 设置项/无渲染异常，PIL 放大复核）。两次派发实测确认：同 provider 下并非所有 model 收图（deepseek-v4-pro-0813 不收），候选要试；provider 显示名（opengw）≠ id（baidu）。
+- 事实澄清：本会话工具描述中的 model/provider 可选参数即 dsh modelSelection 能力；「dsh 设置已开」= 官方 Subagent 设置页的许可清单已含上述 4 条路由。
 
 ### M3 可选市场化（独立会话，用户启动才做）
 

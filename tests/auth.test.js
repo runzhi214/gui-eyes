@@ -91,7 +91,7 @@ describe('ensureDshCookieAuth', () => {
     try {
       const tokenUrl = 'http://h:3080/?token=secret#/route'
       writeFileSync(join(dir, 'token'), tokenUrl)
-      const page = fakePage({ bodyText: 'authentication required', bodySeq: ['authentication required', '工作台已就绪'] })
+      const page = fakePage({ bodyText: 'authentication required', bodySeq: ['authentication required', '页面已就绪'] })
       const mode = await ensureDshCookieAuth({ page, baseUrl: 'http://h/', tokenFiles: [join(dir, 'token')] })
       expect(mode).toBe('token-bootstrap')
       expect(page.gotoCalls[1]).toEqual({ url: tokenUrl, opts: { waitUntil: 'domcontentloaded', timeout: 20000 } })

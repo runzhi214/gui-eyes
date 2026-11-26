@@ -74,6 +74,8 @@ echo 'http://127.0.0.1:3080/?token=...' > ~/.dsh-gui-token
 - 会话跨调用保活；同 baseUrl+auth 复用不重导航，页面崩溃/关闭自动重开，`force: true` 强制重开。
 - profile 里 `@deepseek-ai/dsh-mcp-client` 版本必须与运行中 dsh 一致，否则插件行启动即禁用；对齐用 `dsh plugin --profile <p> add -E @deepseek-ai/dsh-mcp-client@<runtime-version>`。
 
+**多模态分诊（文本会话要看图时）**：截图/留证任何会话都能做；但当前会话模型无图像输入能力、又需要**判读**截图内容（UI 验收）时，用 `subagent` 工具起子代理并传 `model` 选多模态路由（先 `list_subagent_models` 枚举），让子代理截图+读图并带回结论。详见 skill「gui-verification」。
+
 **gui-verification skill**（自主验证时刻的召回）：把 `skills/gui-verification/` 复制或软链到 `~/.agents/skills/` 即可，dsh 的 skill provider 热加载，无需重启。
 
 ## 已知缺陷与边界

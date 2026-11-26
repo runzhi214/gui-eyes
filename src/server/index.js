@@ -5,6 +5,7 @@ import { AuthError } from '../core/auth.js'
 import { UsageError } from '../core/usage.js'
 import { ScenarioSchemaError } from '../scenario/schema.js'
 import { createTools } from './tools.js'
+import { SERVER_INSTRUCTIONS } from './instructions.js'
 
 // 安全事实(issue #8):GUI 操作以真实用户身份生效,不受会话权限模式约束
 const SAFETY_NOTE = '注意:GUI 操作以真实用户身份生效,不受会话权限模式(只读/读写)约束'
@@ -27,7 +28,7 @@ const tabParam = z.number().int().min(0).optional()
   .describe('目标页索引(gui_open 报告的 tabs 总数;点击 target=_blank 弹出新页后用 tab 切换,如 tab:1)')
 
 export function createMcpServer({ manager = createSessionManager(), tools = createTools({ manager }) } = {}) {
-  const server = new McpServer({ name: 'gui-eyes', version: '0.1.0' })
+  const server = new McpServer({ name: 'gui-eyes', version: '0.1.0' }, { instructions: SERVER_INSTRUCTIONS })
   const guarded = (handler) => async (args) => {
     try {
       return await handler(args)

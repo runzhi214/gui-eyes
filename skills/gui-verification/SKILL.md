@@ -40,6 +40,19 @@ gui_open → gui_click / gui_type 交互 → gui_assert 断言 → gui_shot 截�
 - `gui_click` 的 text 非精确、多匹配点 DOM 序第一个——响应 `matches` 字段暴露命中数,`matches > 1` 时换更精确的定位或 `exact: true`。
 - MCP 工具描述与清单是会话启动时快照;引擎更新后需新会话才见新工具面。
 
+## 多模态分诊(文本会话要看图时必读)
+
+当前会话模型**没有图像输入能力**时(调读图工具报 "does not declare image input" 之类):
+
+- **截图/留证/交用户**——不需要分诊,任何会话都能做(`mcp__gui-eyes__gui_shot` 后把路径给用户/写报告)。
+- **要判读截图内容**(UI 验收:确认按钮状态、布局对不对、图表数值)——**不要自己猜图**,起多模态子代理:
+  1. 先 `list_subagent_models` 枚举本部署可用的路由(无参返回 provider 清单;注意 provider **id** 可能与显示名不同,route 用 id 组;再按 provider 枚举它的 model);
+  2. **选模型必须选支持多模态的**——deepseek-v4-pro 等纯文本模型即使能派发也读不了图;多模态模型按名字约定优先(如 deepseek-v4.1-flash 属多模态系);`subagent` 起子代理时 provider+model 显式传该路由(不传则继承当前文本会话,读不了图);
+  3. 子代理任务写清:`用 mcp__gui-eyes__gui_shot 截 <目标页/元素> 并用读图工具判读 <验收点>`,附会话上下文(刚做的改动、要确认什么);
+  4. 子代理完成通知带回结论,父会话汇总结论,不搬原图。若子代理报读图失败,换枚举出的下一个多模态候选重派。
+
+主会话是多模态模型时,直接自己 `gui_shot` + `read_image`,无需分诊。
+
 ## target 选择
 
 - 验证本 dsh GUI:默认 `target: dsh-web`(30 天 cookie 自动续)。
