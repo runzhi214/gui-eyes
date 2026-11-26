@@ -24,8 +24,8 @@ gui-eyes dom  [--target dsh-web|plain] [--base-url <url>] [--head <chars>]
 ```
 
 - 直接跑：`node bin/gui-eyes.js run scenarios/xxx.yaml`（或 `pnpm link` 后用 `gui-eyes`）。
-- baseUrl 优先级：显式参数 > `GUI_EYES_BASE_URL` > 场景声明 > `http://127.0.0.1:3080/`。
-- 输出：stdout 单个 JSON（契约 §4.3）；exit 0 成功 / 1 失败或断言未全过 / 2 未鉴权（NO_TOKEN / NO_COOKIE）。
+- baseUrl 优先级：显式参数 > `GUI_EYES_BASE_URL` > 场景声明 > `http://127.0.0.1:3080/`（该回退默认仅对 `dsh-web` 有意义；`--target plain` 必须显式给 baseUrl，缺省直接报参数错误，不会静默指向 dsh-web）。
+- 输出：stdout 单个 JSON（契约 §4.3）；exit 0 成功 / 1 失败或断言未全过 / 2 未鉴权（NO_TOKEN / NO_COOKIE / TOKEN_STALE）。
 
 ### dsh-web 鉴权 bootstrap（仅 cookie 失效时需要）
 
@@ -36,7 +36,8 @@ echo 'http://127.0.0.1:3080/?token=...' > ~/.dsh-gui-token
 ```
 
 - cookie 落 `~/.cache/dsh-gui-eyes/profile`，由持久密钥签名，30 天有效且跨 dsh 重启不掉。
-- 需重贴 token 的 5 个条件见 REQUIREMENTS.md §4.4。
+- **dsh 重启后不需要重贴 token**：cookie 跨重启有效。重启只是让终端打印的 launch token 轮换——只有当 cookie 本身失效、需要重铸时（命中 §4.4 五条件之一，如满 30 天），才要贴 dsh web **重启后新打印**的 URL。
+- 重铸带兑付后复验：token 已死（如重启后贴的是旧 URL）时报告 `TOKEN_STALE` 结构化错误（exit 2），不再假报成功。
 - token 只读、掩码、永不落盘/不回显/不进报告明文；token URL 原样使用不解析重组。
 
 ### 场景 YAML
@@ -53,9 +54,18 @@ steps + asserts 的完整 schema 见 REQUIREMENTS.md §4.2（含 2026-11-25 批�
 
 ## MCP 接入（M2，已交付）
 
-任何 dsh profile 想让 agent 用上 gui-eyes：安装 `mcp-register/` 这个配置-only bundle（`plugin_manager` `action: install_bundle`，target 为本仓 `mcp-register/` 绝对路径），重启 dsh 后**每个新会话**的工具面自动出现 `gui_open / gui_click / gui_type / gui_shot / gui_dom / gui_assert / gui_run`（`mcp__gui-eyes__*`），无需记忆、无需文档。会话跨调用保活，DSH cookie 失效自动重铸；截图落 `shots/` 并返回绝对路径，可直接交读图工具。
+任何 dsh profile 想让 agent 用上 gui-eyes：安装 `mcp-register/` 这个配置-only bundle（`plugin_manager` `action: install_bundle`，target 为本仓 `mcp-register/` 绝对路径），重启 dsh 后**每个新会话**的工具面自动出现 `gui_open / gui_click / gui_type / gui_shot / gui_dom / gui_assert / gui_run`（`mcp__gui-eyes__*`），无需记忆、无需文档。会话跨调用保活，DSH cookie 失效自动重铸；截图默认落 `shots/<今日>/` 并返回绝对路径，可直接交读图工具。
 
-注意事项（实测）：profile 里 `@deepseek-ai/dsh-mcp-client` 的版本必须与运行中 dsh 一致，否则插件行启动即禁用（日志报 disabling），对齐用 `dsh plugin --profile <p> add -E @deepseek-ai/dsh-mcp-client@<runtime-version>`；dsh 重启后 launch token 随之轮换，需重贴 `~/.dsh-gui-token`。
+工具面语义（2026-11-26 issue 修复后）：
+
+- `gui_open`：同 baseUrl+auth 复用会话、不重新导航；页面已关闭/渲染崩溃自动重开；`force: true` 强制关旧重开；报告含 `degraded` 健康度。
+- `gui_click` / `gui_type`：响应附命中数 `matches` 与元素文本摘要（text 默认非精确匹配、多匹配点 DOM 序第一个——歧义看 `matches` 字段）；失败按 `error: not-found | timeout | obscured | error` 分类并附消息。`gui_type` 支持 `into`(CSS) 或 `locate`(text|role+name|selector) 二选一。
+- `gui_shot`：可选 `outDir`；失败不返回 path。
+- `gui_dom`：附 `total_length` 与 `truncated`；读取失败 `ok: false`。
+- `gui_run`：在独立页面执行（不扰动交互会话页），返回 `body_text_head`；断言定位器执行异常记「执行异常」，不与计数 0 混同。
+- 安全事实：GUI 操作以真实用户身份生效，**不受会话权限模式（只读/读写）约束**。
+
+注意事项（实测）：profile 里 `@deepseek-ai/dsh-mcp-client` 的版本必须与运行中 dsh 一致，否则插件行启动即禁用（日志报 disabling），对齐用 `dsh plugin --profile <p> add -E @deepseek-ai/dsh-mcp-client@<runtime-version>`。
 
 ## 路线
 

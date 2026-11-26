@@ -30,16 +30,22 @@ const makePage = ({ body = '', failOn = null } = {}) => {
 
 describe('resolveTarget', () => {
   it('dsh-web default carries the 3080 baseUrl and dsh-cookie auth', () => {
-    expect(resolveTarget({})).toEqual({ baseUrl: 'http://127.0.0.1:3080/', auth: 'dsh-cookie' })
+    // baseUrl 来自 target 注册表声明(非回退默认),按链定义记 baseUrlExplicit:true
+    expect(resolveTarget({})).toEqual({ baseUrl: 'http://127.0.0.1:3080/', auth: 'dsh-cookie', baseUrlExplicit: true })
   })
-  it('plain target falls back through the priority chain with auth none', () => {
-    expect(resolveTarget({ target: 'plain', explicitBaseUrl: 'http://h/' })).toEqual({ baseUrl: 'http://h/', auth: 'none' })
-    expect(resolveTarget({ target: 'plain' })).toEqual({ baseUrl: 'http://127.0.0.1:3080/', auth: 'none' })
+  it('plain target needs an explicit baseUrl; env counts as explicit (issue #6)', () => {
+    expect(resolveTarget({ target: 'plain', explicitBaseUrl: 'http://h/' }))
+      .toEqual({ baseUrl: 'http://h/', auth: 'none', baseUrlExplicit: true })
+    expect(resolveTarget({ target: 'plain', env: { GUI_EYES_BASE_URL: 'http://e/' } }))
+      .toEqual({ baseUrl: 'http://e/', auth: 'none', baseUrlExplicit: true })
+    expect(resolveTarget({ target: 'plain', env: {} }))
+      .toEqual({ baseUrl: 'http://127.0.0.1:3080/', auth: 'none', baseUrlExplicit: false })
   })
   it('inline target wins as declared unless overridden explicitly', () => {
-    expect(resolveTarget({ target: { baseUrl: 'http://t/', auth: 'none' } })).toEqual({ baseUrl: 'http://t/', auth: 'none' })
+    expect(resolveTarget({ target: { baseUrl: 'http://t/', auth: 'none' } }))
+      .toEqual({ baseUrl: 'http://t/', auth: 'none', baseUrlExplicit: true })
     expect(resolveTarget({ target: { baseUrl: 'http://t/', auth: 'none' }, explicitBaseUrl: 'http://x/' }))
-      .toEqual({ baseUrl: 'http://x/', auth: 'none' })
+      .toEqual({ baseUrl: 'http://x/', auth: 'none', baseUrlExplicit: true })
   })
 })
 

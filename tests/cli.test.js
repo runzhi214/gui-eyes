@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { parseArgs, cliMain } from '../src/cli/cli.js'
 import { AuthError } from '../src/core/auth.js'
+import { UsageError } from '../src/core/usage.js'
 import { ScenarioSchemaError } from '../src/scenario/schema.js'
 
 describe('parseArgs (§4.1)', () => {
@@ -121,6 +122,14 @@ describe('cliMain: run', () => {
     const code = await cliMain(['run', 'demo.yaml'], io)
     expect(code).toBe(2)
     expect(lines[0]).toEqual({ error: 'NO_TOKEN', hint: 'hint-text' })
+  })
+  it('exit 1 with usage error structure when the target is missing its baseUrl (issue #6)', async () => {
+    const { lines, io } = makeIo(fakeSession(), {
+      openSession: async () => { throw new UsageError('PLAIN_BASE_URL_MISSING', 'hint-plain') },
+    })
+    const code = await cliMain(['dom', '--target', 'plain'], io)
+    expect(code).toBe(1)
+    expect(lines[0]).toEqual({ error: 'PLAIN_BASE_URL_MISSING', hint: 'hint-plain' })
   })
   it('exit 1 with INVALID_SCENARIO structure on schema errors', async () => {
     const { lines, io } = makeIo(fakeSession(), {

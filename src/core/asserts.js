@@ -4,8 +4,10 @@ const RULE_SLICE = 40
 const clip = (s, n) => String(s).slice(0, n)
 const bySelector = (sel) => clip(sel, RULE_SLICE)
 
+// 不吞错:正文读取失败(页面关闭/崩溃)向上抛,由 runAssertEntry 记录为「执行异常」ok:false。
+// 旧版 .catch(() => '') 会让 textNotVisible 在坏页上空文通过(假绿)。
 async function bodyText(page) {
-  return page.locator('body').innerText().catch(() => '')
+  return page.locator('body').innerText()
 }
 
 const ASSERT_ENGINES = {
@@ -27,7 +29,7 @@ const ASSERT_ENGINES = {
   },
   async count(page, { selector, hasText, equals }) {
     const locator = page.locator(selector, hasText !== undefined ? { hasText } : {})
-    const actual = await locator.count().catch(() => 0)
+    const actual = await locator.count()
     return { ok: actual === equals, detail: `期望 ${equals}, 实际 ${actual}` }
   },
   async textMatches(page, { selector, regex }) {
@@ -38,9 +40,9 @@ const ASSERT_ENGINES = {
   },
   async checked(page, { selector, all }) {
     const boxes = page.locator(selector)
-    const total = await boxes.count().catch(() => 0)
+    const total = await boxes.count()
     if (total === 0) return { ok: false, detail: '未通过: 无匹配元素' }
-    const states = await Promise.all(Array.from({ length: total }, (_, i) => boxes.nth(i).isChecked().catch(() => false)))
+    const states = await Promise.all(Array.from({ length: total }, (_, i) => boxes.nth(i).isChecked()))
     const on = states.filter(Boolean).length
     return { ok: all && on === total, detail: `${on}/${total} 勾选` }
   },

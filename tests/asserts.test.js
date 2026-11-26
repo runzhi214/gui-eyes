@@ -124,4 +124,22 @@ describe('assert engine: failure containment', () => {
     expect(results[0]).toEqual({ rule: 'textVisible "a"', ok: false, detail: '执行异常: boom' })
     expect(results[1].ok).toBe(false)
   })
+  it('count with an invalid selector reports 执行异常, never a fake-green equals:0 (issue #1)', async () => {
+    const page = { locator: () => { throw new Error('Unexpected token "[")') } }
+    const r = await runAssertEntry(page, { count: { selector: 'bad[', equals: 0 } })
+    expect(r.ok).toBe(false)
+    expect(r.detail).toContain('执行异常')
+  })
+  it('textNotVisible fails (执行异常) when the body is unreadable, never vacuously passes (issue #1)', async () => {
+    const page = { locator: () => ({ async innerText() { throw new Error('Target closed') } }) }
+    const r = await runAssertEntry(page, { textNotVisible: '错误提示' })
+    expect(r.ok).toBe(false)
+    expect(r.detail).toContain('执行异常')
+  })
+  it('checked reports 执行异常 when counting throws, instead of "0/0 勾选" lies', async () => {
+    const page = { locator: () => { throw new Error('page closed') } }
+    const r = await runAssertEntry(page, { checked: { selector: 'input[type=checkbox]', all: true } })
+    expect(r.ok).toBe(false)
+    expect(r.detail).toContain('执行异常')
+  })
 })

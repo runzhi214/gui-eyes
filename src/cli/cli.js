@@ -4,6 +4,7 @@ import { loadScenario } from '../scenario/load.js'
 import { runScenario } from '../scenario/runner.js'
 import { openSession } from '../core/session.js'
 import { AuthError } from '../core/auth.js'
+import { UsageError } from '../core/usage.js'
 import { ScenarioSchemaError } from '../scenario/schema.js'
 import { maskToken, shapeConsoleErrors, shapeFailedRequests, exitCodeFor } from '../core/report.js'
 
@@ -168,6 +169,10 @@ export async function cliMain(argv, io = {}) {
     if (parsed.command === 'dom') return await cmdDom(parsed, deps)
     return await cmdRun(parsed, deps)
   } catch (e) {
+    if (e instanceof UsageError) {
+      deps.out(JSON.stringify({ error: e.code, hint: e.hint }, null, 2))
+      return 1
+    }
     if (e instanceof AuthError) {
       deps.out(JSON.stringify({ error: e.code, hint: e.hint }, null, 2))
       return 2

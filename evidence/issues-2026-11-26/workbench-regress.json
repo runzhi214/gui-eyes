@@ -1,0 +1,47 @@
+{
+  "gui_run": {
+    "ok": true,
+    "steps": [
+      {
+        "action": "goto",
+        "arg": "/",
+        "ok": true
+      },
+      {
+        "action": "wait",
+        "arg": 6000,
+        "ok": true
+      },
+      {
+        "action": "shot",
+        "arg": "root",
+        "ok": true
+      },
+      {
+        "action": "click",
+        "arg": {
+          "text": "Landing Zone 工作台"
+        },
+        "ok": true
+      },
+      {
+        "action": "wait",
+        "arg": 5000,
+        "ok": true
+      },
+      {
+        "action": "shot",
+        "arg": "workbench",
+        "ok": true
+      }
+    ],
+    "shots": [
+      "/home/x30070689/projects/dsh-gui-eyes/shots/2026-11-26/root-1795680365649.png",
+      "/home/x30070689/projects/dsh-gui-eyes/shots/2026-11-26/workbench-1795680370838.png"
+    ],
+    "body_text_head": "新会话\n插件\n自动化任务\nLanding Zone 工作台\n更多\n工作区\ndsh-traj-export\ndsh-traj-anonymizer\ndsh-tool-forge\ndeepseek-harness\ndsh-gui-eyes\n新会"
+  },
+  "interactive_after": {
+    "text_head": "新会话\n插件\n自动化任务\nLanding Zone 工作台\n更多\n工作区\ndsh-traj-export\ndsh-traj-anonymizer\ndsh-tool-forge\ndeepseek-harness\ndsh-gui-eyes\n新会"
+  }
+}

@@ -14,6 +14,7 @@ export function failedRequestEntry({ status, url }) {
 export function createCollectors(page, { consoleSlice = CONSOLE_ERROR_SLICE } = {}) {
   const consoleErrors = []
   const failedRequests = []
+  let crashes = 0
   page.on('console', (m) => {
     if (m.type() === 'error') consoleErrors.push(m.text().slice(0, consoleSlice))
   })
@@ -21,5 +22,6 @@ export function createCollectors(page, { consoleSlice = CONSOLE_ERROR_SLICE } = 
     const entry = failedRequestEntry({ status: r.status(), url: r.url() })
     if (entry) failedRequests.push(entry)
   })
-  return { consoleErrors, failedRequests }
+  page.on('crash', () => { crashes += 1 })
+  return { consoleErrors, failedRequests, crashCount: () => crashes }
 }

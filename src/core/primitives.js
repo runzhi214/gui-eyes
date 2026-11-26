@@ -6,12 +6,15 @@ export const GOTO_TIMEOUT_MS = 20000
 
 const resolveUrl = (baseUrl, path) => (/^https?:\/\//.test(path) ? path : new URL(path, baseUrl).href)
 
-export function clickLocator(page, spec) {
-  if (typeof spec === 'string') return page.getByText(spec).first()
-  if (spec.text !== undefined) return page.getByText(spec.text, { exact: spec.exact === true }).first()
-  if (spec.role !== undefined) return page.getByRole(spec.role, { name: spec.name }).first()
-  return page.locator(spec.selector).first()
+// 全量定位器(审计用):与 clickLocator 同一套语义,但不取 first,可 count 全部匹配
+export function locateAll(page, spec) {
+  if (typeof spec === 'string') return page.getByText(spec)
+  if (spec.text !== undefined) return page.getByText(spec.text, { exact: spec.exact === true })
+  if (spec.role !== undefined) return page.getByRole(spec.role, { name: spec.name })
+  return page.locator(spec.selector)
 }
+
+export const clickLocator = (page, spec) => locateAll(page, spec).first()
 
 async function bodyInnerText(page) {
   return page.locator('body').innerText({ timeout: 5000 }).catch(() => '')

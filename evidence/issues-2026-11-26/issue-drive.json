@@ -1,0 +1,97 @@
+{
+  "startedAt": "2026-11-26T08:04:51.816Z",
+  "log": [
+    {
+      "name": "#8 seven tools registered",
+      "pass": true
+    },
+    {
+      "name": "#8 all 7 descriptions carry the safety note",
+      "pass": true
+    },
+    {
+      "name": "#1 gui_open reports degraded:false on a healthy page",
+      "pass": true,
+      "note": "auth_mode=cookie"
+    },
+    {
+      "name": "#1 gui_open title/body non-empty",
+      "pass": true
+    },
+    {
+      "name": "#3 gui_open auth established",
+      "pass": true
+    },
+    {
+      "name": "#6 gui_dom carries total_length/truncated",
+      "pass": true
+    },
+    {
+      "name": "#1 count with bad selector fails as 执行异常 (no fake green)",
+      "pass": true,
+      "note": "执行异常: locator.count: Unexpected token \"\" while parsing css selector \"button[\". D"
+    },
+    {
+      "name": "#6 gui_shot returns dated-subdir absolute path",
+      "pass": true
+    },
+    {
+      "name": "#1 gui_shot path really exists on disk",
+      "pass": true
+    },
+    {
+      "name": "#2 force reopen returns a healthy report",
+      "pass": true
+    },
+    {
+      "name": "#6 plain without baseUrl is a structured error",
+      "pass": true
+    },
+    {
+      "name": "#6 plain with explicit baseUrl opens",
+      "pass": true
+    },
+    {
+      "name": "#4 gui_type works via locate selector",
+      "pass": true,
+      "note": "{\"ok\":true,\"final_url\":\"http://127.0.0.1:43905/\",\"matches\":1}"
+    },
+    {
+      "name": "#4 gui_type actually filled (echo present)",
+      "pass": true
+    },
+    {
+      "name": "#4 gui_click returns matches audit",
+      "pass": true,
+      "note": "{\"matches\":2,\"matched_text\":\"plain-page\"}"
+    },
+    {
+      "name": "#1 gui_click not-found is fast and classified",
+      "pass": true
+    },
+    {
+      "name": "#5 gui_run ok with asserts green",
+      "pass": true
+    },
+    {
+      "name": "#5 gui_run response carries body_text_head",
+      "pass": true
+    },
+    {
+      "name": "#5 interactive page untouched by gui_run (still interactive-input, not scenario-input)",
+      "pass": true
+    },
+    {
+      "name": "#3 stale token reports TOKEN_STALE, not fake token-bootstrap",
+      "pass": true,
+      "note": "{\"error\":\"TOKEN_STALE\",\"hint\":\"token 已失效(常见于 dsh 重启后轮换):把 dsh web 终端新打印的完整 URL 重贴到 ~/.dsh-gui-token(一行)\"}"
+    },
+    {
+      "name": "#3 live token re-mints and passes re-verify",
+      "pass": true,
+      "note": "auth_mode=token-bootstrap degraded=false"
+    }
+  ],
+  "failures": [],
+  "backupDir": "/tmp/gui-eyes-issue-drive-N1OqBo"
+}
