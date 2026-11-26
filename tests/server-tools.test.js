@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { createSessionManager } from '../src/server/session-manager.js'
 import { createTools } from '../src/server/tools.js'
 import { AuthError, NO_TOKEN_HINT } from '../src/core/auth.js'
@@ -296,7 +297,10 @@ describe('server tools', () => {
     const tools = createTools({ manager })
     const r = parse(await tools.guiShot({ name: 'unit-default' }))
     expect(r.ok).toBe(true)
-    expect(r.path).toMatch(new RegExp(`dsh-gui-eyes/shots/\\d{4}-\\d{2}-\\d{2}/unit-default-\\d+\\.png$`))
+    // 仓根从本测试文件位置推导——断言不耦合 checkout 目录名(CI 曾因 dsh-gui-eyes 字面量挂掉)
+    const repoRoot = fileURLToPath(new URL('../../', import.meta.url))
+    expect(r.path.startsWith(join(repoRoot, 'shots'))).toBe(true)
+    expect(r.path).toMatch(new RegExp(`shots/\\d{4}-\\d{2}-\\d{2}/unit-default-\\d+\\.png$`))
   })
 
   it('wrapError shapes schema errors as INVALID_SCENARIO and passes others through', async () => {
