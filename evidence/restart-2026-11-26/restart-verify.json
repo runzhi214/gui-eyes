@@ -1,0 +1,76 @@
+{
+  "topic": "dsh 重启后的活体验证(cookie 跨重启 + M2.1 修复字段实达 agent)",
+  "verifiedAtWindow": "2026-11-26T16:31~16:39 +08:00(仅 shot 有产物级精确时间戳,其余为近似)",
+  "preconditions": {
+    "dsh_restarted": "用户于验证前重启 dsh(约 16:2x +08:00)",
+    "token_file": "用户在重启后用 dsh web 终端新 URL 重写了 ~/.dsh-gui-token(用户口头澄清,精确时间未知;token 内容按纪律不记录)",
+    "session": "MCP 工具清单为重启后新会话快照,7 条 gui_* 描述均为 M2.1 新文案(含 force/degraded/SAFETY_NOTE)"
+  },
+  "steps": [
+    {
+      "seq": 1,
+      "tool": "gui_open",
+      "args": { "target": "dsh-web" },
+      "calledAtApprox": "2026-11-26T08:32Z",
+      "result": {
+        "auth_mode": "cookie",
+        "final_url": "http://127.0.0.1:3080/",
+        "title": "AI Shell",
+        "body_text_head": "新会话\n插件\n自动化任务\nLanding Zone 工作台\n更多\n工作区\ndsh-traj-export\ndsh-traj-anonymizer\ndsh-tool-forge\ndeepseek-harness\ndsh-gui-eyes\n新会话\nGUI采集引擎M0+M1重构\n23分钟\n重启dsh是否需重新提供URL\n2天\ndsh-gitcode-mr-tools\ndsh-workspace-tool-scope\ndsh-workbench-db-tools\nLanding Zone 搭建\nlandingzone-workbench\nprojects\naishell-dsh-plugins\n默认工作区\n设置\n探索未至之境\n预览版\nPowered by deepseek-harness\n云资源查询\n列出当前账号下的云资源\n部署方案推荐\n按访问量和预算给出可落地的部署路径\n企业上云\n多账号、网络分区与权限边界的整体设计\n账单分析\n分析上个月的云资源支出\n安全审查\n检查云资源是否存在安全问题\n云资源查询\n列出当前账号下的云资源\n部署方案推荐\n按访问量和预算给出可落地的部署路径\n企业上云\n多账号、网络分区与权限边界的整体设计\n账单分析\n分析上个月的云资源支出\n安全审查\n检查云资源是否存在安全问题\n云资源查询\n列出当前账号下的云资",
+        "console_errors": [],
+        "failed_requests": [],
+        "degraded": false
+      },
+      "conclusion": "auth_mode=cookie:探测未撞认证墙,token 文件未被读取,持久 cookie 独立完成鉴权——§4.4「重启后无需重贴 URL」在 cookie 路径成立"
+    },
+    {
+      "seq": 2,
+      "tool": "gui_click",
+      "args": { "text": "页面上肯定不存在的元素xyzzy42" },
+      "calledAtApprox": "2026-11-26T08:34Z",
+      "result": { "ok": false, "final_url": "http://127.0.0.1:3080/", "matches": 0, "error": "not-found" },
+      "conclusion": "失败分类落 live(#4):not-found 与超时/遮挡可区分"
+    },
+    {
+      "seq": 3,
+      "tool": "gui_dom",
+      "args": { "head": 50 },
+      "calledAtApprox": "2026-11-26T08:34Z",
+      "result": { "ok": true, "text": "新会话\n插件\n自动化任务\nLanding Zone 工作台\n更多\n工作区\ndsh-traj-expo", "total_length": 753, "truncated": true },
+      "conclusion": "截断标记落 live(#6):total_length + truncated 可区分空文与截断"
+    },
+    {
+      "seq": 4,
+      "tool": "gui_open",
+      "args": { "target": "dsh-web", "force": true },
+      "calledAtApprox": "2026-11-26T08:37Z",
+      "result": {
+        "auth_mode": "cookie",
+        "final_url": "http://127.0.0.1:3080/",
+        "title": "AI Shell",
+        "body_text_head": "(同 seq 1,会话列表时间从 23 分钟变为 24 分钟)",
+        "console_errors": [],
+        "failed_requests": [],
+        "degraded": false
+      },
+      "conclusion": "force 强制重开落 live(#2):旧会话关闭、新会话仍 cookie 直连"
+    },
+    {
+      "seq": 5,
+      "tool": "gui_shot",
+      "args": { "name": "post-restart-check" },
+      "calledAt": "2026-11-26T08:38:50.602Z",
+      "result": { "ok": true, "path": "shots/2026-11-26/post-restart-check-1795682330602.png" },
+      "conclusion": "截图落日期子目录(#6);文件本体在 .gitignore 的 shots/ 下,不入库"
+    }
+  ],
+  "crossReferences": {
+    "recast_path_evidence": "evidence/m2/new-session-verify.json(同日 07:08Z,auth_mode=token-bootstrap,重铸路径的活体证据)",
+    "scripted_acceptance": "evidence/issues-2026-11-26/issue-drive.json(#1–#8 修复的脚本化验收;本记录互补覆盖其无法脚本化的重启场景)",
+    "issues": "https://gitcode.com/xiaozoom/dsh-gui-eyes/issues #1–#8 closed,#9–#13 open"
+  },
+  "scopeNotes": [
+    "本记录未测试「token 文件持死值 + cookie 失效」的重铸失败场景:token 已被用户刷新,且当日重铸路径已有 m2 证据",
+    "两路径当日均已活体覆盖:重铸路径(上午,m2 记录)+ cookie 存活路径(本记录)"
+  ]
+}
