@@ -36,7 +36,7 @@
 - **D6 playwright 依赖自持**：引擎独立成包、自带依赖声明；浏览器继续复用 `~/.cache/ms-playwright` 缓存保持准零安装；删除一切借道 AI_Shell_WEB 的 createRequire。
 - **D7 报告契约向后兼容**：核心 JSON 字段（§4.3）与 exit code 语义不变，允许新增字段，不允许改名/删字段。旧字段 `clicked_workbench` 属场景层输出，随 legacy 脚本退役，由通用 `steps` 摘要替代。
 - **D8 视觉读图不并入引擎**：采集归引擎，读图归 agent 多模态（read_image / flash 子代理），保持解耦。
-- **D9 仓库名与目录**维持 `~/projects/dsh-gui-eyes` 不迁移（防止既有引用悬空）；对外 npm 包名在 M3 发布时定为 `gui-eyes`。
+- **D9 仓库名与目录**维持 `~/projects/dsh-gui-eyes` 不迁移（防止既有引用悬空）；对外 npm 包名在 M3 发布时定为 `gui-eyes`。**2026-11-26 M3 启动时修订（用户拍板）**：分发走 GitHub Packages（本机 registry.npmjs.org 不通、GHPR 实测可达），GHPR 强制 scoped 包名 → 定名 `@runzhi214/gui-eyes`；主开发仓仍为 GitCode（origin），GitHub `runzhi214/gui-eyes` 为发布镜像 + CI。
 - **D10 鉴权策略插件化**：`auth: dsh-cookie | none`，结构可扩展；baseUrl 解析优先级见 §4.1，不做过度的端口自动发现。
 
 ## 3. 目标架构
@@ -259,9 +259,12 @@ dsh-gui-eyes/
 - 活体验证（evidence/vision-triage-2026-11-26/）：文本主会话 → 子代理 route `baidu/deepseek-v4.1-flash-1017` → gui_shot 截设置页 → read_image 真实判读成功（7 标签页/9 设置项/无渲染异常，PIL 放大复核）。两次派发实测确认：同 provider 下并非所有 model 收图（deepseek-v4-pro-0813 不收），候选要试；provider 显示名（opengw）≠ id（baidu）。
 - 事实澄清：本会话工具描述中的 model/provider 可选参数即 dsh modelSelection 能力；「dsh 设置已开」= 官方 Subagent 设置页的许可清单已含上述 4 条路由。
 
-### M3 可选市场化（独立会话，用户启动才做）
+### M3 市场化（2026-11-26 用户启动，本会话执行）
 
-展示元数据、图标、多语言、许可证、打包白名单、发布；npm 包名 `gui-eyes`（D9）。许可证已于 2026-11-26 提前落地 MIT（LICENSE + package.json license 字段，用户拍板）。
+- 渠道：GitHub Packages（`@runzhi214/gui-eyes`，D9 修订）。本机 npmjs.org 不通、GHPR 可达（HTTP 301 探测）；gh 已登录 runzhi214（ssh 推送可用），token 无 write:packages → **发布走 GitHub Actions**（workflow secrets.GITHUB_TOKEN 自带 packages:write，免本机 PAT，CI 同跑全量单测）。
+- 落地项：package.json 市场化（name/version 0.2.0/keywords/repository/bin 增 `gui-eyes-mcp` 走 PATH/files 打包白名单/publishConfig GHPR）；files 白名单含 `skills/`（消费者可从 node_modules 取 skill）；excluded：tests/evidence/shots/mcp-register（本机绝对路径）/`.npmrc`（华为云镜像属本机，npm 默认不发布）。
+- 消费方事实：GHPR 的 npm registry 对**所有安装要求认证**（公开包也要）——消费机需 PAT（read:packages）配 `.npmrc`；landingzone 侧以此与本地 checkout 解耦（依赖版本号）。
+- 残余：README 接入段补 npm 安装路径；workflow 随镜像仓落地后打 tag `v0.2.0` 触发首发。
 
 ## 8. 红线与反例
 

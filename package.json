@@ -1,15 +1,45 @@
 {
-  "name": "gui-eyes",
-  "version": "0.1.0",
+  "name": "@runzhi214/gui-eyes",
+  "version": "0.2.0",
   "type": "module",
-  "private": true,
+  "description": "通用 web GUI 采集与验证引擎：持久鉴权会话 + 导航 + 截图/DOM/console/network 观测 + 断言，CLI 与 MCP 双通道。",
+  "keywords": [
+    "gui",
+    "browser-automation",
+    "playwright",
+    "mcp",
+    "mcp-server",
+    "verification",
+    "e2e",
+    "regression-testing",
+    "agent-tools"
+  ],
   "license": "MIT",
-  "description": "通用 web GUI 采集引擎：持久鉴权会话 + 导航 + 截图/DOM/console/network 观测 + 断言。契约见 REQUIREMENTS.md。",
-  "scripts": {
-    "test": "vitest run"
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/runzhi214/gui-eyes.git"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "bin": {
-    "gui-eyes": "./bin/gui-eyes.js"
+    "gui-eyes": "./bin/gui-eyes.js",
+    "gui-eyes-mcp": "./bin/gui-eyes-mcp.js"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "skills/",
+    "scenarios/example-plain.yaml",
+    "README.md",
+    "LICENSE",
+    "REQUIREMENTS.md"
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "scripts": {
+    "test": "vitest run"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
@@ -19,9 +49,6 @@
   },
   "devDependencies": {
     "vitest": "^3.2.4"
-  },
-  "engines": {
-    "node": ">=18"
   },
   "pnpm": {
     "ignoredBuiltDependencies": [
