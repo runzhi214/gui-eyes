@@ -106,7 +106,8 @@
     {
       "name": "workbench-msflip (informational: workbench-side selector drift)",
       "pass": null,
-      "note": "ok=false; msPanel click ok, checkbox/msRow/msClear selectors no longer in DOM (component rewritten by workbench-side development; scenario rewrite belongs to landingzone-workbench repo)"
+      "note": "ok=false; msPanel click ok, checkbox/msRow/msClear selectors no longer in DOM (component rewritten by workbench-side development; scenario rewrite belongs to landingzone-workbench repo)",
+      "correction": "2026-11-26 更正(GitCode issue #14 / 引擎 v0.4.0): 「组件重写」结论不成立——组件未重构, checkbox/msRow/msClear 一直健在(HEAD 源码与构建产物均证实)。当时缺席的真因是叠加态: ① 会话停在无同步数据的个人账号, 服务筛面 facets 为空, MultiSelect 面板只渲染「暂无可选项」; ② gui_run 场景页与长驻交互页共享 context, 场景页后发 fetch 被长连占坑饿死(issue #14, v0.4.0 改独立临时浏览器根治 + pending_requests 观测)。场景已重写(保留 checkbox 语义, 加空数据守卫), v0.4.0 下重跑全绿(8/8 断言, 交互页停在资源管理页时亦绿)。"
     },
     {
       "name": "#11 inline-declared baseUrl beats ambient env (scenario navigates its own target)",

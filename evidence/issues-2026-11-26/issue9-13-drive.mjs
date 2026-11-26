@@ -171,6 +171,10 @@ try {
       r.ok ? '' : `steps:${JSON.stringify(r.steps)} asserts:${JSON.stringify(r.asserts)}`.slice(0, 300))
   }
   const msf = parse(await c1.call('gui_run', { scenario: join(WB, 'workbench-msflip.yaml') }))
+  // 更正(2026-11-26, GitCode issue #14 / v0.4.0): 下行 note 的「组件重写」结论不成立——
+  // 组件未重构, checkbox/msRow/msClear 健在; 缺席真因 = 个人账号空 facets(面板只渲染
+  // 「暂无可选项」) + gui_run 场景页 fetch 被长驻交互页长连饿死(#14, v0.4.0 独立临时
+  // 浏览器根治)。保留原 note 仅作历史记录, 修正口径见 issue9-13-drive.json 的 correction 字段。
   log.push({ name: 'workbench-msflip (informational: workbench-side selector drift)', pass: null, note: `ok=${msf.ok}; msPanel click ok, checkbox/msRow/msClear selectors no longer in DOM (component rewritten by workbench-side development; scenario rewrite belongs to landingzone-workbench repo)` })
   c1.kill()
 
