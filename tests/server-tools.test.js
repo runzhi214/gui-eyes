@@ -298,7 +298,7 @@ describe('server tools', () => {
     const r = parse(await tools.guiShot({ name: 'unit-default' }))
     expect(r.ok).toBe(true)
     // 仓根从本测试文件位置推导——断言不耦合 checkout 目录名(CI 曾因 dsh-gui-eyes 字面量挂掉)
-    const repoRoot = fileURLToPath(new URL('../../', import.meta.url))
+    const repoRoot = fileURLToPath(new URL('../', import.meta.url))
     expect(r.path.startsWith(join(repoRoot, 'shots'))).toBe(true)
     expect(r.path).toMatch(new RegExp(`shots/\\d{4}-\\d{2}-\\d{2}/unit-default-\\d+\\.png$`))
   })
