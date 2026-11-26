@@ -1,0 +1,27 @@
+[
+  {
+    "acceptance": "② cookie 失效(profile 删除) + token 在场 → 自动重铸",
+    "profile_deleted_before": true,
+    "auth_mode": "token-bootstrap",
+    "body_head_120": "新会话\n插件\n自动化任务\nLanding Zone 工作台\n更多\n工作区\ndsh-traj-export\ndsh-traj-anonymizer\ndsh-tool-forge\ndeepseek-harness\ndsh-gui-eyes\n新会",
+    "pass": true
+  },
+  {
+    "acceptance": "③ 无 token → 结构化 NO_TOKEN; 同 server 后续调用得 NO_SESSION(进程存活)",
+    "open_result": {
+      "error": "NO_TOKEN",
+      "hint": "把 dsh web 终端里的完整 URL 写入 ~/.dsh-gui-token(一行)"
+    },
+    "dom_after_failure": {
+      "error": "NO_SESSION",
+      "hint": "无活动会话:先调用 gui_open 建立会话"
+    },
+    "pass": true
+  },
+  {
+    "acceptance": "现场恢复: token 归位 + 重铸",
+    "auth_mode": "token-bootstrap",
+    "token_restored": true,
+    "pass": true
+  }
+]

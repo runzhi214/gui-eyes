@@ -186,10 +186,19 @@ dsh-gui-eyes/
 - **2026-11-25 会话执行记录（用户拍板的两处口径）**：① `capture-msflip.mjs` 并入迁移（第 4 个场景，契约修正见 §4.2 附录）；② drill 的 P1 断言数据（IaC 团队排名行 + 7 个 ep 名）在当前活 GUI 上已不存在（视图漂移为成员视角），场景按现实重写为「视图自适应下钻 + 验证明细列表在场」，易漂移业务数据不进场景，workbench 侧接手后自行加强断言。
 - **后续动作（非本会话）**：landingzone-workbench 仓 `scripts-dev/vision-gui.mjs` 改调本引擎、接收场景文件——由 workbench 侧会话按 §4.2 契约执行。
 
-### M2 MCP server（独立会话）
+### M2 MCP server（已于 2026-11-26 本会话完成，原计划独立会话——用户拍板拉入）
 
 - §4.5 工具面 + 会话保活 + dsh profile 注入（参考 memory-openviking 的 mcp client 条目形态与 ops-deploy 的 stdio 接入先例）。
 - 验收：① 子代理新会话真机可见 7 工具并实际调用成功；② 删 `~/.cache/dsh-gui-eyes/profile` 模拟 cookie 失效，token 文件在场时自动重铸成功；③ 无 token 时 `gui_open` 返回 NO_TOKEN 结构化错误而非进程崩溃；④ `--profile web --dump-config` 可见注入条目。
+- **2026-11-26 执行记录（四条验收全过，证据 `evidence/m2/`）**：
+  1. `@modelcontextprotocol/sdk` 1.32.2 + zod，`bin/gui-eyes-mcp.js` stdio 入口；`src/server/`：session-manager（同 target 复用/异 target 关旧开新）、tools（7 工具全复用 core，click/type 内置 800ms settle，截图默认落引擎仓 `shots/`）、index（SDK wiring + 统一错误面：NO_SESSION/NO_TOKEN/INVALID_SCENARIO 结构化 isError）。
+  2. 单测 110/110（session-manager 保活语义、7 工具正反例，纯逻辑不启浏览器）。
+  3. 注册走配置-only bundle `mcp-register/`（stdio + `failOnStartupError: true`），`plugin_manager install_bundle` applied。
+  4. **验收踩坑与事实**：
+     - profile 曾把 `@deepseek-ai/dsh-mcp-client` 钉死在 `0.2.1-alpha.1`，与 dsh 0.2.2-rc.5 不匹配 → 插件行每次启动被禁用（日志反复报 disabling）。已用 `dsh plugin --profile web add -E @deepseek-ai/dsh-mcp-client@0.2.2-rc.5` 对齐运行时版本，**未走版本豁免**；改 profile 依赖后需重启 dsh 生效。
+     - launch token 随 dsh 进程重启轮换——重启后必须重贴新 URL（token 文件里旧 URL 失效是预期，非引擎 bug）。重铸判据须「auth_mode=token-bootstrap 且正文无 401 文案」双验，防 token 死时假绿。
+     - **验证载体陷阱**：MCP 连接按会话启动时建立；运行中的旧会话（含其派生子代理）看不到新注入的工具。验收①必须用安装/修复之后启动的全新会话。
+     - `gui_shot` 曾因默认参数写成 `shotsDir = defaultShotsDir()`（调用而非引用）在真实链路上崩——单测全显式传参恰好绕过，由协议级活测抓出。回归测试已锚定。
 
 ### M3 可选市场化（独立会话，用户启动才做）
 

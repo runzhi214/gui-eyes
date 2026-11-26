@@ -11,8 +11,10 @@
     "gui-eyes": "./bin/gui-eyes.js"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "playwright": "1.62.1",
-    "yaml": "^2.9.1"
+    "yaml": "^2.9.1",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "vitest": "^3.2.4"

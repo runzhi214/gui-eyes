@@ -46,11 +46,18 @@ steps + asserts 的完整 schema 见 REQUIREMENTS.md §4.2（含 2026-11-25 批�
 ## 目录
 
 - `src/core/` 机制层（target / auth / browser / primitives / observe / asserts / report / session）
-- `src/scenario/` 场景装载校验 + runner；`src/cli/` CLI 壳；`src/server/` M2 留空（stdio MCP server）
+- `src/scenario/` 场景装载校验 + runner；`src/cli/` CLI 壳；`src/server/` MCP server（M2 已交付，`bin/gui-eyes-mcp.js` stdio 入口）
+- `mcp-register/` dsh 注册 bundle（配置-only）：`plugin_manager install_bundle` 指向本目录即可把 7 个 `mcp__gui-eyes__*` 工具注入 profile 的所有新会话
 - `scenarios/` 通用示例场景（`example-plain.yaml`）；workbench 四场景已迁移至 landingzone-workbench 仓 `.dsh/gui-scenarios/`
-- `tests/` vitest 纯逻辑单测；`evidence/` 活体回归证据（原脚本归档与等价对照）；`shots/` 运行产物（.gitignore）
+- `tests/` vitest 纯逻辑单测；`evidence/` 活体回归证据（原脚本归档与等价对照、M1/M2 验收驱动与结果）；`shots/` 运行产物（.gitignore）
+
+## MCP 接入（M2，已交付）
+
+任何 dsh profile 想让 agent 用上 gui-eyes：安装 `mcp-register/` 这个配置-only bundle（`plugin_manager` `action: install_bundle`，target 为本仓 `mcp-register/` 绝对路径），重启 dsh 后**每个新会话**的工具面自动出现 `gui_open / gui_click / gui_type / gui_shot / gui_dom / gui_assert / gui_run`（`mcp__gui-eyes__*`），无需记忆、无需文档。会话跨调用保活，DSH cookie 失效自动重铸；截图落 `shots/` 并返回绝对路径，可直接交读图工具。
+
+注意事项（实测）：profile 里 `@deepseek-ai/dsh-mcp-client` 的版本必须与运行中 dsh 一致，否则插件行启动即禁用（日志报 disabling），对齐用 `dsh plugin --profile <p> add -E @deepseek-ai/dsh-mcp-client@<runtime-version>`；dsh 重启后 launch token 随之轮换，需重贴 `~/.dsh-gui-token`。
 
 ## 路线
 
-- M0 core 抽取 + 单测（本仓已完成）→ M1 场景层 + CLI（本仓已完成）
-- M2 stdio MCP server（§4.5，独立会话）→ M3 市场化（用户启动才做）
+- M0 core 抽取 + 单测 ✓ → M1 场景层 + CLI ✓ → M2 stdio MCP server + 注册 ✓（本仓已完成）
+- M3 市场化（用户启动才做）

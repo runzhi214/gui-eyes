@@ -1,0 +1,174 @@
+[
+  {
+    "init": {
+      "server": "gui-eyes",
+      "version": "0.1.0"
+    }
+  },
+  {
+    "tools_listed": [
+      "gui_open",
+      "gui_click",
+      "gui_type",
+      "gui_shot",
+      "gui_dom",
+      "gui_assert",
+      "gui_run"
+    ]
+  },
+  {
+    "tool": "gui_open",
+    "args": {
+      "target": "dsh-web"
+    },
+    "isError": false,
+    "content": {
+      "auth_mode": "cookie",
+      "final_url": "http://127.0.0.1:3080/",
+      "title": "AI Shell",
+      "body_text_head": "新会话\n插件\n自动化任务\nLanding Zone 工作台\n更多\n工作区\ndsh-traj-export\ndsh-traj-anonymizer\ndsh-tool-forge\ndeepseek-harness\ndsh-gui-eyes\ndsh-gitcode-mr-tools\ndsh-workspace-tool-scope\ndsh-workbench-db-tools\nLanding Zone 搭建\nlandingzone-workbench\n新会话\nResourcePage 404 排查与进程重启\n22小时\n临时AKSK导入Terraform资源状态\n21天\n资源管理页面改版设计计划\n21天\n通过RMS查询OBS中的aishell\n22天\nprojects\naishell-dsh-plugins\n默认工作区\n设置\n探索未至之境\n预览版\nPowered by deepseek-harness\n云资源查询\n列出当前账号下的云资源\n部署方案推荐\n按访问量和预算给出可落地的部署路径\n企业上云\n多账号、网络分区与权限边界的整体设计\n账单分析\n分析上个月的云资源支出\n安全审查\n检查云资源是否存在安全问题\n云资源查询\n列出当前账号下的云资源\n部署方案推荐\n按访问量和预算给出可落地的部署路径\n企业上云\n多账号、网络分区与权限边界的整体设计\n账单分析\n分析上个月的云资源支出\n安全审查\n检查云资源",
+      "console_errors": [],
+      "failed_requests": []
+    }
+  },
+  {
+    "tool": "gui_click",
+    "args": {
+      "text": "Landing Zone 工作台"
+    },
+    "isError": false,
+    "content": {
+      "ok": true,
+      "final_url": "http://127.0.0.1:3080/"
+    }
+  },
+  {
+    "tool": "gui_dom",
+    "args": {
+      "head": 300
+    },
+    "isError": false,
+    "content": {
+      "ok": true,
+      "text": "新会话\n插件\n自动化任务\nLanding Zone 工作台\n更多\n工作区\ndsh-traj-export\ndsh-traj-anonymizer\ndsh-tool-forge\ndeepseek-harness\ndsh-gui-eyes\ndsh-gitcode-mr-tools\ndsh-workspace-tool-scope\ndsh-workbench-db-tools\nLanding Zone 搭建\nlandingzone-workbench\n新会话\nResourcePage 404 排查与进程重启\n22小时\n临时AKSK导入Terraform资源状态\n21天\n资源管理页面改版设计计划\n21"
+    }
+  },
+  {
+    "tool": "gui_shot",
+    "args": {
+      "name": "mcp-workbench"
+    },
+    "isError": false,
+    "content": {
+      "ok": true,
+      "path": "/home/x30070689/projects/dsh-gui-eyes/shots/mcp-workbench-1795676102111.png"
+    }
+  },
+  {
+    "shot_exists_on_disk": true
+  },
+  {
+    "tool": "gui_assert",
+    "args": {
+      "asserts": [
+        {
+          "textVisible": "资源管理"
+        }
+      ]
+    },
+    "isError": false,
+    "content": {
+      "ok": true,
+      "results": [
+        {
+          "rule": "textVisible \"资源管理\"",
+          "ok": true,
+          "detail": "命中"
+        }
+      ]
+    }
+  },
+  {
+    "tool": "gui_open(plain)",
+    "args": {
+      "target": "plain",
+      "baseUrl": "http://127.0.0.1:37117/"
+    },
+    "isError": false,
+    "content": {
+      "auth_mode": "none",
+      "final_url": "http://127.0.0.1:37117/",
+      "title": "",
+      "body_text_head": "plain-page",
+      "console_errors": [],
+      "failed_requests": []
+    }
+  },
+  {
+    "tool": "gui_type",
+    "args": {
+      "into": "#q",
+      "text": "typed-hello"
+    },
+    "isError": false,
+    "content": {
+      "ok": true,
+      "final_url": "http://127.0.0.1:37117/"
+    }
+  },
+  {
+    "typed_visible": true
+  },
+  {
+    "tool": "gui_run",
+    "args": {
+      "scenario": "workbench-capture.yaml"
+    },
+    "isError": false,
+    "content": {
+      "ok": true,
+      "steps": [
+        {
+          "action": "goto",
+          "arg": "/",
+          "ok": true
+        },
+        {
+          "action": "wait",
+          "arg": 6000,
+          "ok": true
+        },
+        {
+          "action": "shot",
+          "arg": "root",
+          "ok": true
+        },
+        {
+          "action": "click",
+          "arg": {
+            "text": "Landing Zone 工作台"
+          },
+          "ok": true
+        },
+        {
+          "action": "wait",
+          "arg": 5000,
+          "ok": true
+        },
+        {
+          "action": "shot",
+          "arg": "workbench",
+          "ok": true
+        }
+      ],
+      "asserts": [],
+      "shots": [
+        "/home/x30070689/projects/dsh-gui-eyes/shots/root-1795676121972.png",
+        "/home/x30070689/projects/dsh-gui-eyes/shots/workbench-1795676127110.png"
+      ]
+    }
+  },
+  {
+    "after_run_is_dshweb": true
+  }
+]

@@ -1,0 +1,25 @@
+{
+  "tools_visible": true,
+  "gui_tools": [
+    "mcp__gui-eyes__gui_open",
+    "mcp__gui-eyes__gui_click",
+    "mcp__gui-eyes__gui_type",
+    "mcp__gui-eyes__gui_shot",
+    "mcp__gui-eyes__gui_dom",
+    "mcp__gui-eyes__gui_assert",
+    "mcp__gui-eyes__gui_run"
+  ],
+  "open_result": {
+    "auth_mode": "token-bootstrap",
+    "final_url": "http://127.0.0.1:3080/",
+    "title": "AI Shell",
+    "body_text_head": "新会话\n插件\n自动化任务\nLanding Zone 工作台\n更多\n工作区\ndsh-traj-export\ndsh-traj-anonymizer\ndsh-tool-forge\ndeepseek-harness\ndsh-gui-eyes\n新会话\n进行中\n新会话验证 gui-eyes MCP 工具注入\n刚刚\n进行中\nGUI采集引擎M0+M1重构\n刚刚\n重启dsh是否需重新提供URL\n2天\ndsh-gitcode-mr-tools\ndsh-workspace-tool-scope\ndsh-workbench-db-tools\nLanding Zone 搭建\nlandingzone-workbench\nprojects\naishell-dsh-plugins\n默认工作区\n设置\n探索未至之境\n预览版\nPowered by deepseek-harness\n云资源查询\n列出当前账号下的云资源\n部署方案推荐\n按访问量和预算给出可落地的部署路径\n企业上云\n多账号、网络分区与权限边界的整体设计\n账单分析\n分析上个月的云资源支出\n安全审查\n检查云资源是否存在安全问题\n云资源查询\n列出当前账号下的云资源\n部署方案推荐\n按访问量和预算给出可落地的部署路径\n企业上云\n多账号、网络分区与权限边界的整体设计\n账单分析\n分析上个月的云资源支出\n安全审查\n检查云资源是否存在安全问题\n云资源查询\n列出当前账号下的云资",
+    "console_errors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    "failed_requests": [
+      "HTTP 401 http://127.0.0.1:3080/"
+    ]
+  },
+  "called_at": "2026-11-26T07:08:00.000Z"
+}
