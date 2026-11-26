@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "private": true,
+  "license": "MIT",
   "description": "通用 web GUI 采集引擎：持久鉴权会话 + 导航 + 截图/DOM/console/network 观测 + 断言。契约见 REQUIREMENTS.md。",
   "scripts": {
     "test": "vitest run"

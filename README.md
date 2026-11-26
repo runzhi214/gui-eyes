@@ -69,5 +69,7 @@ steps + asserts 的完整 schema 见 REQUIREMENTS.md §4.2（含 2026-11-25 批�
 
 ## 路线
 
-- M0 core 抽取 + 单测 ✓ → M1 场景层 + CLI ✓ → M2 stdio MCP server + 注册 ✓（本仓已完成）
+- M0 core 抽取 + 单测 ✓ → M1 场景层 + CLI ✓ → M2 stdio MCP server + 注册 ✓（本仓已完成）→ M2.1 验收 issue 修复 ✓
 - M3 市场化（用户启动才做）
+
+License: MIT（[LICENSE](./LICENSE)）。
