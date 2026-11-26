@@ -332,6 +332,55 @@ describe('server tools', () => {
     expect(parse(tools.wrapError(bad)).error).toBe('NO_SUCH_TAB')
   })
 
+  it('guiDom withRefs lists numbered inventory; guiClick {ref} addresses by number (dsh-browser #1)', async () => {
+    const page = makePage({ body: '保存 取消' })
+    page.evaluate = vi.fn(async (script, ...args) => {
+      if (typeof script === 'string' && script.includes('querySelectorAll')) {
+        return [{ tagName: 'BUTTON', text: '保存' }, { tagName: 'BUTTON', text: '取消' }]
+      }
+      return undefined
+    })
+    const { tools, manager } = makeTools(page)
+    await manager.open({})
+    const dom = parse(await tools.guiDom({ withRefs: true }))
+    expect(dom.interactive_inventory).toEqual([
+      { ref: 1, tag: 'button', text: '保存' },
+      { ref: 2, tag: 'button', text: '取消' },
+    ])
+    const r = parse(await tools.guiClick({ ref: 1 }))
+    expect(r.ok).toBe(true)
+    expect(r.ref).toBe(1)
+  })
+
+  it('guiClick with a missing ref reports not-found and hints withRefs first', async () => {
+    const page = makePage({ body: 'x', matches: 0 })
+    page.evaluate = vi.fn(async () => [])
+    const { tools, manager } = makeTools(page)
+    await manager.open({})
+    const r = parse(await tools.guiClick({ ref: 9 }))
+    expect(r.ok).toBe(false)
+    expect(r.error).toBe('not-found')
+    expect(r.message).toContain('withRefs')
+  })
+
+  it('guiDom delta: first call is full-baseline, second call returns only changes (dsh-browser #4)', async () => {
+    const page = makePage({ body: 'x' })
+    let inventory = [{ tagName: 'BUTTON', text: '保存' }]
+    page.evaluate = vi.fn(async (script) => {
+      if (typeof script === 'string' && script.includes('querySelectorAll')) return inventory
+      return undefined
+    })
+    const { tools, manager } = makeTools(page)
+    await manager.open({})
+    const first = parse(await tools.guiDom({ delta: true }))
+    expect(first.delta_note).toContain('基线')
+    expect(first.interactive_inventory).toHaveLength(1)
+    inventory = [{ tagName: 'BUTTON', text: '保存' }, { tagName: 'BUTTON', text: '新增' }]
+    const second = parse(await tools.guiDom({ delta: true }))
+    expect(second.changed_refs.map(c => c.text)).toEqual(['新增'])
+    expect(second.removed_refs).toEqual([])
+  })
+
   it('guiShot fullPage passes through to screenshot (issue #9)', async () => {
     const page = makePage()
     const { tools, manager } = makeTools(page)

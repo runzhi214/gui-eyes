@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { clickLocator, locateAll, CLICK_TIMEOUT_MS, TYPE_TIMEOUT_MS } from '../core/primitives.js'
 import { runAsserts } from '../core/asserts.js'
 import { createCollectors } from '../core/observe.js'
+import { buildInventory, diffInventory, COLLECT_SCRIPT, DSH_EL_ATTR } from '../core/inventory.js'
 import { loadScenario } from '../scenario/load.js'
 import { runScenario } from '../scenario/runner.js'
 import { maskToken, shapeConsoleErrors, shapeFailedRequests } from '../core/report.js'
@@ -53,8 +54,51 @@ const pageFor = (session, tab) => {
   return pages[tab]
 }
 
+// ref → data-dsh-el 直达定位(模块级,guiClick/guiType/refAudit 共用)
+const refLocator = (page, ref) => page.locator(`[${DSH_EL_ATTR}="${ref}"]`)
+
+// ref 通道的审计: 元素在场(属性命中)给 matched_text;不在场 matches:0
+async function refAudit(page, ref) {
+  const locator = refLocator(page, ref)
+  const matches = await locator.count().catch(() => 0)
+  if (matches === 0) return { matches }
+  const text = await locator.first().innerText().catch(() => '')
+  return { matches, ...(text !== '' ? { matched_text: text.slice(0, MATCHED_TEXT_SLICE) } : {}), ref }
+}
+
+// ref 直达的写回: 清单编号写上 DOM(data-dsh-el),click/type 按 ref 取属性直达
+// 注意 playwright evaluate 只收一个附加参数——多参数必须包对象
+async function writeBackRefs(page, inventory) {
+  const payload = { attr: DSH_EL_ATTR, entries: inventory.map((item, i) => ({ index: i + 1, ref: item.ref })) }
+  return page.evaluate(({ attr, entries }) => {
+    for (const el of document.querySelectorAll(`[${attr}]`)) el.removeAttribute(attr)
+    const SEL = 'a[href], button, input:not([type="hidden"]), select, textarea, [role="button"], [role="link"], [role="checkbox"], [role="radio"], [role="tab"], [role="menuitem"], summary, [contenteditable="true"], [contenteditable=""]'
+    const visible = [...document.querySelectorAll(SEL)].filter((el) => {
+      const s = getComputedStyle(el)
+      if (s.display === 'none' || s.visibility === 'hidden' || s.opacity === '0') return false
+      const r = el.getBoundingClientRect()
+      return r.width > 0 && r.height > 0
+    })
+    entries.forEach((entry) => {
+      const el = visible[entry.index - 1]
+      if (el) el.setAttribute(attr, String(entry.ref))
+    })
+  }, payload)
+}
+
 export function createTools({ manager, shotsDir = defaultShotsDir, settleMs = SETTLE_MS, load = loadScenario, run = runScenario } = {}) {
   const settle = (page) => page.waitForTimeout(settleMs)
+
+  // delta 基线按会话内存管理: force 重开即清空(诚实语义——重开=全新基线)
+  let inventoryBaseline = null
+
+
+
+  // 收集页面上可见交互元素并按结构指纹编号(纯逻辑在 core/inventory,此处管 browser 侧)
+  const collectInteractive = async (page) => {
+    const collected = await page.evaluate(COLLECT_SCRIPT)
+    return buildInventory(collected)
+  }
 
   return {
     async guiOpen({ target, baseUrl, force } = {}) {
@@ -82,16 +126,23 @@ export function createTools({ manager, shotsDir = defaultShotsDir, settleMs = SE
       const session = manager.current()
       const { tab, ...clickSpec } = spec ?? {}
       const page = pageFor(session, tab)
-      const audit = await clickAudit(locateAll(page, spec))
+      // ref 通道(编号寻址): data-dsh-el 直达;未先 withRefs 列清单则属性不在场 → not-found 带提示
+      const byRef = clickSpec.ref !== undefined
+      const locator = byRef ? refLocator(page, clickSpec.ref) : clickLocator(page, clickSpec)
+      const audit = byRef
+        ? await refAudit(page, clickSpec.ref)
+        : await clickAudit(locateAll(page, clickSpec))
       let error = audit.matches === 0 ? 'not-found' : null
       let failureMessage
       if (error === null) {
         try {
-          await clickLocator(page, clickSpec).click({ timeout: CLICK_TIMEOUT_MS })
+          await locator.click({ timeout: CLICK_TIMEOUT_MS })
         } catch (e) {
           error = reasonFor(e)
           failureMessage = clipMessage(e)
         }
+      } else if (byRef) {
+        failureMessage = `ref ${clickSpec.ref} 不在场——先用 gui_dom {withRefs: true} 列出编号清单`
       }
       await settle(page)
       return json({
@@ -104,11 +155,14 @@ export function createTools({ manager, shotsDir = defaultShotsDir, settleMs = SE
 
     async guiType({ into, text, locate, tab } = {}) {
       if ((into !== undefined) === (locate !== undefined)) {
-        throw new UsageError('BAD_TYPE_TARGET', 'into(CSS 选择器) 与 locate(text|role+name|selector) 必须二选一')
+        throw new UsageError('BAD_TYPE_TARGET', 'into(CSS 选择器) 与 locate(text|role+name|selector|ref) 必须二选一')
       }
       const session = manager.current()
       const page = pageFor(session, tab)
-      const full = locate !== undefined ? locateAll(page, locate) : page.locator(into)
+      const byRef = locate?.ref !== undefined
+      const full = byRef
+        ? refLocator(page, locate.ref)
+        : (locate !== undefined ? locateAll(page, locate) : page.locator(into))
       const audit = await clickAudit(full)
       let error = audit.matches === 0 ? 'not-found' : null
       let failureMessage
@@ -119,6 +173,8 @@ export function createTools({ manager, shotsDir = defaultShotsDir, settleMs = SE
           error = reasonFor(e)
           failureMessage = clipMessage(e)
         }
+      } else if (byRef) {
+        failureMessage = `ref ${locate.ref} 不在场——先用 gui_dom {withRefs: true} 列出编号清单`
       }
       await settle(page)
       return json({
@@ -143,7 +199,7 @@ export function createTools({ manager, shotsDir = defaultShotsDir, settleMs = SE
       }
     },
 
-    async guiDom({ head = MCP_DOM_HEAD_CHARS, tab } = {}) {
+    async guiDom({ head = MCP_DOM_HEAD_CHARS, tab, withRefs, delta } = {}) {
       const session = manager.current()
       const page = pageFor(session, tab)
       let full
@@ -152,12 +208,37 @@ export function createTools({ manager, shotsDir = defaultShotsDir, settleMs = SE
       } catch (e) {
         return json({ ok: false, error: clipMessage(e) })
       }
-      return json({
+      const response = {
         ok: true,
         text: full.slice(0, head),
         total_length: full.length,
         truncated: full.length > head,
-      })
+      }
+      // 编号清单(design-inventory-delta #1): 结构指纹编号 + data-dsh-el 写回供 ref 直达
+      if (withRefs === true) {
+        const inventory = await collectInteractive(page)
+        response.interactive_inventory = inventory.map(({ ref, tag, text }) => ({ ref, tag, text }))
+        // 写回失败不吞:清单可读但 ref 直达不可用,warning 如实带出(issue #1 精神:观测点不静默)
+        try {
+          await writeBackRefs(page, inventory)
+        } catch (e) {
+          response.ref_writeback_warning = `ref 直达未生效(清单仍可读): ${clipMessage(e)}`
+        }
+      }
+      // delta 快照(#4): 与本会话上次基线 diff,只回变化;首次无基线=全量
+      if (delta === true) {
+        const inventory = await collectInteractive(page)
+        if (inventoryBaseline === null) {
+          response.delta_note = '首次快照,返回全量清单作为基线'
+          response.interactive_inventory = inventory.map(({ ref, tag, text }) => ({ ref, tag, text }))
+        } else {
+          const { changed, removedRefs } = diffInventory(inventoryBaseline, inventory)
+          response.changed_refs = changed
+          response.removed_refs = removedRefs
+        }
+        inventoryBaseline = inventory
+      }
+      return json(response)
     },
 
     async guiAssert({ asserts, tab }) {

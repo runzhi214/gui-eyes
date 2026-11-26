@@ -1,6 +1,6 @@
 {
   "name": "@runzhi214/gui-eyes",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "description": "通用 web GUI 采集与验证引擎：持久鉴权会话 + 导航 + 截图/DOM/console/network 观测 + 断言，CLI 与 MCP 双通道。",
   "keywords": [
