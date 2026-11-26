@@ -67,10 +67,11 @@ gui-eyes run   <scenario.yaml> [--base-url <url>] [--out-dir <dir>] [--timeout-s
 ```
 
 - `--target`：`dsh-web`（默认）或 `plain`。
-- baseUrl 解析优先级：**显式参数 > 环境变量 `GUI_EYES_BASE_URL` > 场景文件 target 声明 > 默认 `http://127.0.0.1:3080/`**；该回退默认仅对 `dsh-web` 有意义——`plain` 目标缺 baseUrl 时直接报 `PLAIN_BASE_URL_MISSING` 参数错误（CLI exit 1），不静默指向 dsh-web（2026-11-26 issue#6）。
+- baseUrl 解析优先级（2026-11-26 issue#11 契约修订）：**显式参数 > 场景内联声明 > 环境变量 `GUI_EYES_BASE_URL` > 注册表/内置默认 `http://127.0.0.1:3080/`**。内联声明是场景作者写的目标地址，不被 ambient env 静默劫持；未声明时 env 仍可重定向运行。该回退默认仅对 `dsh-web` 有意义——`plain` 目标缺 baseUrl 时直接报 `PLAIN_BASE_URL_MISSING` 参数错误（CLI exit 1），不静默指向 dsh-web（issue#6）。
 - `--out-dir` 默认**当前工作区**下的 `./shots`（bwrap 沙箱 /tmp 不跨 bash 调用保留，产物必须落工作区）。
 - `--timeout-scale`：全局等待时间缩放因子（默认 1），供慢环境回归。
 - dsh-cookie 失效时行为：有 token 文件 → 自动重铸（`auth_mode: token-bootstrap`）；无 → `NO_TOKEN` 结构化输出 + exit 2。
+- plain 企业化最小集（2026-11-26 issue#11，用户拍板）：`httpCredentials` 经 `GUI_EYES_HTTP_CREDS=user:pass`（凭据不进 MCP 参数与会话日志）；启动参数经 `GUI_EYES_LAUNCH_JSON`（白名单 ignoreHTTPSErrors/proxy/userAgent/locale，自签 HTTPS 内网/代理/UA 定制）；profile 按鉴权拆分——dsh-web 用 `~/.cache/dsh-gui-eyes/profile`，plain 用 `profile-plain`。表单登录步骤与 storageState 注入不做（按需另立项）。
 
 ### 4.2 场景 YAML schema（M1 交付）
 
@@ -102,6 +103,10 @@ asserts:                   # 全过 exit 0，任一失败 exit 1
   2. 断言规则 `textMatches: { selector, regex }`：首个匹配元素 innerText 按正则校验（后端数据决定的动态文案，如「服务 N 项」）。
   3. 断言规则 `checked: { selector, all: true }`：匹配的 checkbox 全部勾选且数量 > 0（勾选态是 DOM property，attrMatches 不覆盖）。
   4. click 可选修饰 `ifNotVisible: <文本>`：文本已可见则跳过该点击（视角自适应分支）。
+- **2026-11-26 issue#9 补充（观测口径对齐，用户拍板）**：
+  1. `textVisible` / `textNotVisible` 判定引擎与 click 同源（getByText）：**穿透 open Shadow DOM、只计可见元素、子串匹配大小写不敏感**——「点得中」与「断言得到」口径一致。旧 innerText 引擎废弃（shadow 不可见、隐藏元素误命中）；跨元素边界的文本两侧同样匹配不到，属口径一致语义。
+  2. click / type / 断言规则对象（attrMatches/count/textMatches/checked）支持可选 `frame: <iframe 选择器>`，经 frameLocator 进入 iframe 定位。
+  3. `textVisible` / `textNotVisible` 支持 object 形态 `{ text, frame }` 断言 iframe 内文本；string 形态不变（主文档）。
 
 ### 4.3 报告 JSON 契约（向后兼容，D7）
 
@@ -112,10 +117,10 @@ stdout 单个 JSON 对象，字段与语义：
 | `auth_mode` | `cookie` \| `token-bootstrap` \| `none` |
 | `final_url` | 最终 URL，**必须经过 token 掩码**（`token=[^&\s']*` → `token=***`） |
 | `title` | 页面 title |
-| `steps` | 逐步摘要 `[{action, arg, ok}]`（替代旧 `clicked_workbench`，M1 起） |
+| `steps` | 逐步摘要 `[{action, arg, ok}]`（替代旧 `clicked_workbench`，M1 起）；失败项附 `message` 失败原因（截 120 字符，issue#10） |
 | `asserts` | 逐条断言结果 `[{rule, ok, detail}]`（仅 run）；定位器执行异常记 `detail: 执行异常: ...`、ok:false，**不与计数 0 混同**（2026-11-26 issue#1 修复） |
 | `console_errors` | console error，单条截 300 字符，最多 10 条 |
-| `failed_requests` | HTTP≥400；非 `/api/` 记完整 URL（掩码后），`/api/` 截 120 字符，最多 15 条 |
+| `failed_requests` | HTTP≥400；非 `/api/` 记完整 URL（掩码后），`/api/` 截 120 字符，最多 15 条；**网络层失败另记 `NET <errorText> <url>`（DNS 失败/连接拒绝/证书错误不产生 response 事件，issue#10）** |
 | `body_text_head` | body innerText 头部（默认 600 字符，`--head`/场景可调） |
 | `shots` | 截图绝对路径数组 |
 
@@ -128,6 +133,7 @@ MCP 通道响应增量字段（2026-11-26 issue 修复，CLI 报告字段不变�
 | `error` / `message` | 失败分类 `not-found \| timeout \| obscured \| error` + 错误消息（截 120 字符）；成功响应不带 |
 | `total_length` / `truncated` | gui_dom：正文全长与是否截断，空文与截断可区分 |
 | `body_text_head` | gui_run 响应补齐（场景 dom 步骤产物不再丢弃，与 CLI 通道对齐） |
+| `tabs` | gui_open 报告：context 内标签页总数（target=_blank 弹窗后 >1，观测/交互工具用 `tab` 参数寻址，issue#9） |
 
 exit code：**0** 成功且断言全过；**1** 采集失败或断言未全过、参数错误（含 plain 缺 baseUrl）；**2** 未鉴权（NO_TOKEN / NO_COOKIE / TOKEN_STALE，输出含 `error` 与 `hint` 字段）。
 
@@ -144,9 +150,13 @@ exit code：**0** 成功且断言全过；**1** 采集失败或断言未全过�
 - 无头上下文 `/api/aishell/permission` 返回 400 属预期（权限 chip 本就隐藏，不阻塞，不进 failed_requests 告警逻辑可保留原样记录）。
 - 安全红线：token 只读、掩码、永不落盘/不回显/不进报告明文。
 
-### 4.5 MCP 工具面（M2 已交付；2026-11-26 issue 修复后语义）
+### 4.5 MCP 工具面（M2 已交付；2026-11-26 issue 修复后语义；M2.2 观测口径与企业化）
 
-stdio MCP server，工具 7 个：`gui_open`（target/baseUrl/force，建立/复用会话并返回报告）、`gui_click`（text | role+name | selector，响应附 matches 审计）、`gui_type`（into(CSS) 或 locate(text|role+name|selector) 二选一）、`gui_shot`（name → 路径，outDir 可选，默认 `shots/<今日>/`）、`gui_dom`（head 可调，附 total_length/truncated）、`gui_assert`（asserts 数组）、`gui_run`（scenario 路径，独立页面执行不扰动交互页，响应含 body_text_head）。会话保活：persistent context 跨工具调用复用，401 自动重铸。复用语义：同 baseUrl+auth 原样返回不重导航；页面关闭/渲染崩溃自动重开；`force: true` 强制重开。7 个工具描述均声明：**GUI 操作以真实用户身份生效，不受会话权限模式约束**。实现优先官方 `@modelcontextprotocol/sdk`，冲突才手写 JSON-RPC。
+stdio MCP server，工具 7 个：`gui_open`（target/baseUrl/force，建立/复用会话并返回报告，含 tabs/NET 观测）、`gui_click`（text | role+name | selector，可选 frame/tab，响应附 matches 审计）、`gui_type`（into(CSS) 或 locate(text|role+name|selector) 二选一，可选 frame/tab）、`gui_shot`（name → 路径，outDir/fullPage/tab 可选，默认 `shots/<今日>/`）、`gui_dom`（head 可调**默认 2000**，附 total_length/truncated，可选 tab）、`gui_assert`（asserts 数组，可选 tab，规则支持 frame）、`gui_run`（scenario 路径，独立页面执行不扰动交互页，响应含 body_text_head 与失败步骤 message）。会话保活：persistent context 跨工具调用复用，401 自动重铸。复用语义：同 baseUrl+auth 原样返回不重导航；页面关闭/渲染崩溃自动重开；`force: true` 强制重开。
+
+描述层（issue#12，2026-11-26 重写）：每条描述含 When-to-use 意图词（验证/验收/回归）与典型验证链 `gui_open → gui_click/gui_type → gui_assert → gui_shot`；gui_dom/gui_assert 声明可见性边界（主文档 innerText 不含 iframe/shadow 文本）；gui_type 声明 ProseMirror `fill("")` 清空无效的已知坑。7 个工具描述均声明：**GUI 操作以真实用户身份生效，不受会话权限模式约束**。工具描述是会话启动时快照——引擎更新后需新会话才触达。
+
+配套（issue#13）：`skills/gui-verification/SKILL.md` 为 skill 源文件（触发词与工具描述同口径），安装到 `~/.agents/skills/gui-verification/`（dsh filesystem skill provider 的 user-agents 根，热加载免重启）；M3 市场化时再升级为 bundle 内置 provider。实现优先官方 `@modelcontextprotocol/sdk`，冲突才手写 JSON-RPC。
 
 ## 5. 环境事实与已踩坑（勿再考古）
 
@@ -224,6 +234,18 @@ dsh-gui-eyes/
 - **#7 文档矛盾（成立）**：README 重写 token 重贴口径（cookie 跨重启 → 免重贴；仅 §4.4 五条件命中才需贴**重启后新打印**的 URL）。
 - **#8 只读警示（用户已关闭 issue，拍板仍加一行）**：7 个工具描述统一声明「GUI 操作以真实用户身份生效，不受会话权限模式约束」。
 - 结构伴随：`UsageError` 下沉 `src/core/usage.js`（session-manager/cli/tools 共用；session-manager 原死 re-export 清除）。
+
+### M2.2 plain 通道专项修复（2026-11-26 第二批验收 issue #9–#13，用户拍板执行）
+
+判定与修复（issue 编号对照 GitCode #9–#13；#9/#10 指控先经留存的 `projects/gui-eyes-plain-test/` 测试页亲手复现坐实，修复回归用同一套页）：
+
+- **#9 观测口径三件套（高，成立）**：textVisible/textNotVisible 改与 click 同源 getByText 引擎（穿透 open shadow、filter visible 只计可见、子串大小写不敏感——「点得中却断言不到」根除）；click/type/断言规则支持 `frame:` 进 iframe；popup 经 `tabs` 报告 + 全工具 `tab` 参数寻址（不加第 8 个工具，越界报 NO_SUCH_TAB）；gui_shot 增 `fullPage`。MCP 侧 textVisible 语义变更：与 4 个迁出场景的 3 条 textVisible 断言（全中文、主文档、可见）实测零影响。
+- **#10 网络层零观测/毒化（高，成立）**：collectors 增 `requestfailed` 监听（`NET <errorText> <url>` 进 failed_requests，token 掩码）；runner 步骤失败附 `message`（截 120，与 MCP 交互路径对齐）；毒化处置采「消息可见化」方案（用户拍板不加 failFast）——级联失效在步骤 message 与 asserts 的执行异常里显式可见，agent 可自行判断页面状态不可信。
+- **#11 plain 企业化（中，四条成立）**：`GUI_EYES_HTTP_CREDS` basic auth、`GUI_EYES_LAUNCH_JSON` 白名单启动参数（ignoreHTTPSErrors/proxy/userAgent/locale）、plain 独立 profile `profile-plain`（dsh 鉴权 cookie 与任意站点不共享上下文）、**baseUrl 优先级链修订为 显式 > 内联声明 > env > 默认（契约修订，场景声明的地址不被 env 劫持）**。表单登录/storageState 明确不做（按需另立项）。
+- **#12 描述触发面（中，成立）**：7 条描述重写——When-to-use 意图词（验证/验收/回归）、gui_open 典型验证链、gui_dom/gui_assert 可见性边界声明、gui_type ProseMirror 坑、gui_dom MCP 默认 head 600→2000（CLI 契约 600 不变）。
+- **#13 skill 召回（低，成立）**：新增 `skills/gui-verification/SKILL.md`（frontmatter 触发词 + 验证链/边界/坑/安全，与工具描述同口径）；部署走 dsh filesystem skill provider 的 user-agents 根（`~/.agents/skills/`，热加载）；「随 bundle 贡献 skill」需要真插件 provider，推迟到 M3。
+- 结构伴随：getByText 引擎使 textMatches 无匹配元素从「执行异常」归因修正为语义性「无匹配元素」；HTTP_400 旧探测语义保留。
+- **README 重构（2026-11-26 用户拍板文档规范，长期生效）**：README 只写「软件是干什么的、怎么用、怎么接入、有哪些缺陷、开源协议」；技术路线与实现方案不进 README，最多留一个链接指向本文件（本文件即仓的契约/技术文档）。原 README 的 M0–M3 路线段、目录树、设计锚点引语随之移除。
 
 ### M3 可选市场化（独立会话，用户启动才做）
 

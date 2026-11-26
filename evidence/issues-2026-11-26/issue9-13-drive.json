@@ -1,0 +1,121 @@
+{
+  "startedAt": "2026-11-26T09:35:37.569Z",
+  "log": [
+    {
+      "name": "#12 all 7 descriptions carry intent words (验证/验收/回归)",
+      "pass": true
+    },
+    {
+      "name": "dsh-web gui_open healthy",
+      "pass": true,
+      "note": "auth_mode=cookie"
+    },
+    {
+      "name": "#9 plain opens",
+      "pass": true
+    },
+    {
+      "name": "#9 textVisible pierces shadow DOM (SHADOW_TEXT_MARKER hit)",
+      "pass": true
+    },
+    {
+      "name": "#9 main doc text still hits",
+      "pass": true
+    },
+    {
+      "name": "#9 textVisible {text, frame} hits iframe text",
+      "pass": true
+    },
+    {
+      "name": "#9 main-doc miss for iframe text is honest (not fake-negative confusion)",
+      "pass": true
+    },
+    {
+      "name": "#9 count inside frame works",
+      "pass": true,
+      "note": "期望 2, 实际 2"
+    },
+    {
+      "name": "#9 click on shadow button still works",
+      "pass": true
+    },
+    {
+      "name": "#9 shadow click effect observable",
+      "pass": true
+    },
+    {
+      "name": "#9 popup-triggering click ok",
+      "pass": true
+    },
+    {
+      "name": "#9 gui_open reports tabs=2 after popup",
+      "pass": true
+    },
+    {
+      "name": "#9 tab:1 observes the popup page",
+      "pass": true
+    },
+    {
+      "name": "#9 out-of-range tab is a structured NO_SUCH_TAB error",
+      "pass": true
+    },
+    {
+      "name": "#9 viewport screenshot is 900-high",
+      "pass": true,
+      "note": "{\"width\":1440,\"height\":900}"
+    },
+    {
+      "name": "#9 fullPage screenshot exceeds viewport (tall page captured)",
+      "pass": true,
+      "note": "{\"width\":1440,\"height\":2981}"
+    },
+    {
+      "name": "#9 force reopen resets context (tabs=1)",
+      "pass": true
+    },
+    {
+      "name": "#12 gui_dom default head is 2000 on MCP channel",
+      "pass": true
+    },
+    {
+      "name": "#10 deadport goto failure carries message",
+      "pass": true,
+      "note": "page.goto: net::ERR_UNSAFE_PORT at http://127.0.0.1:9/\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:9/\", waiting un"
+    },
+    {
+      "name": "#10 NET entry lands in failed_requests",
+      "pass": true,
+      "note": "[\"NET net::ERR_CONNECTION_REFUSED http://127.0.0.1:8471/\",\"NET net::ERR_UNSAFE_PORT http://127.0.0.1:9/\"]"
+    },
+    {
+      "name": "#11 plain uses its own profile dir",
+      "pass": true
+    },
+    {
+      "name": "workbench scenario workbench-capture green under new engine",
+      "pass": true
+    },
+    {
+      "name": "workbench scenario workbench-drill green under new engine",
+      "pass": true
+    },
+    {
+      "name": "workbench scenario workbench-verify green under new engine",
+      "pass": true
+    },
+    {
+      "name": "workbench-msflip (informational: workbench-side selector drift)",
+      "pass": null,
+      "note": "ok=false; msPanel click ok, checkbox/msRow/msClear selectors no longer in DOM (component rewritten by workbench-side development; scenario rewrite belongs to landingzone-workbench repo)"
+    },
+    {
+      "name": "#11 inline-declared baseUrl beats ambient env (scenario navigates its own target)",
+      "pass": true
+    },
+    {
+      "name": "#11 httpCredentials from env authenticates (BASICAUTH_OK_MARKER asserted)",
+      "pass": true
+    }
+  ],
+  "failures": []
+}

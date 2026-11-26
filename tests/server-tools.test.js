@@ -19,43 +19,54 @@ const makePage = ({
   matches = 1,
   matchText = '按钮A',
   bodyReadFails = false,
-} = {}) => ({
-  url: () => url,
-  title: () => Promise.resolve(title),
-  waitForTimeout: vi.fn(async () => {}),
-  close: vi.fn(async () => {}),
-  goto: vi.fn(async () => {}),
-  on: vi.fn(),
-  screenshot: vi.fn(async ({ path }) => ({ path })),
-  locator(sel) {
-    if (sel === 'body') {
-      return { innerText: async () => {
-        if (bodyReadFails) throw new Error('Target closed')
-        return body
-      } }
-    }
-    const loc = {
-      count: async () => matches,
-      innerText: async () => matchText,
-      click: async () => {
-        if (!clickOk) throw clickError ?? new Error('nope')
-      },
-      fill: async () => { if (!clickOk) throw clickError ?? new Error('nope') },
-      first: () => loc,
-      nth: () => loc,
-      isChecked: async () => false,
-      getAttribute: async () => null,
-    }
-    return loc
-  },
-  getByText() { return this.locator('text') },
-  getByRole() { return this.locator('role') },
-})
+} = {}) => {
+  const page = {
+    url: () => url,
+    title: () => Promise.resolve(title),
+    waitForTimeout: vi.fn(async () => {}),
+    close: vi.fn(async () => {}),
+    goto: vi.fn(async () => {}),
+    on: vi.fn(),
+    isClosed: () => false,
+    screenshot: vi.fn(async ({ path }) => ({ path })),
+    frameLocator: () => page,
+    locator(sel) {
+      if (sel === 'body') {
+        return { innerText: async () => {
+          if (bodyReadFails) throw new Error('Target closed')
+          return body
+        } }
+      }
+      const loc = {
+        count: async () => matches,
+        innerText: async () => matchText,
+        click: async () => {
+          if (!clickOk) throw clickError ?? new Error('nope')
+        },
+        fill: async () => { if (!clickOk) throw clickError ?? new Error('nope') },
+        first: () => loc,
+        nth: () => loc,
+        isChecked: async () => false,
+        getAttribute: async () => null,
+      }
+      loc.filter = () => loc
+      return loc
+    },
+    // getByText 与断言引擎同口径: body 子串给真实计数(issue #9)
+    getByText(text) {
+      const n = body.includes(text) ? 1 : 0
+      const loc = { filter: () => ({ count: async () => n }), count: async () => n, first: () => ({ innerText: async () => matchText, click: async () => { if (!clickOk) throw clickError ?? new Error('nope') } }) }
+      return loc
+    },
+    getByRole() { return page.locator('role') },
+  }
+  return page
+}
 
 const makeManager = (page, openImpl) =>
   createSessionManager({ open: openImpl ?? (async () => ({
     page,
-    context: { close: vi.fn(async () => {}), newPage: async () => makePage() },
+    context: { close: vi.fn(async () => {}), newPage: async () => makePage(), pages: () => [page] },
     collectors: { consoleErrors: ['e1'], failedRequests: ['f1'], crashCount: () => 0 },
     authMode: 'cookie',
     baseUrl: 'http://127.0.0.1:3080/',
@@ -82,6 +93,7 @@ describe('server tools', () => {
       console_errors: ['e1'],
       failed_requests: ['f1'],
       degraded: false,
+      tabs: 1,
     })
     expect(r.degraded_reasons).toBeUndefined()
   })
@@ -97,7 +109,7 @@ describe('server tools', () => {
     const page = makePage()
     const openImpl = async () => ({
       page,
-      context: { close: vi.fn(async () => {}), newPage: async () => makePage() },
+      context: { close: vi.fn(async () => {}), newPage: async () => makePage(), pages: () => [page] },
       collectors: { consoleErrors: [], failedRequests: [], crashCount: () => 2 },
       authMode: 'cookie',
       baseUrl: 'http://127.0.0.1:3080/',
@@ -111,7 +123,7 @@ describe('server tools', () => {
   it('guiOpen passes force through to the manager (issue #2)', async () => {
     const open = vi.fn(async () => ({
       page: makePage(),
-      context: { close: vi.fn(async () => {}), newPage: async () => makePage() },
+      context: { close: vi.fn(async () => {}), newPage: async () => makePage(), pages: () => [makePage()] },
       collectors: { consoleErrors: [], failedRequests: [], crashCount: () => 0 },
       authMode: 'cookie',
       baseUrl: 'http://127.0.0.1:3080/',
@@ -143,14 +155,14 @@ describe('server tools', () => {
   it('guiClick reports matched audit info on success (issue #4)', async () => {
     const { tools, manager } = makeTools(makePage())
     await manager.open({})
-    const r = parse(await tools.guiClick({ text: '任意文案' }))
+    const r = parse(await tools.guiClick({ text: '正文内容' }))
     expect(r).toEqual({ ok: true, final_url: 'http://127.0.0.1:3080/wb?token=***', matches: 1, matched_text: '按钮A' })
   })
 
   it('guiClick classifies failures: error carries message (issue #1)', async () => {
     const { tools, manager } = makeTools(makePage({ clickOk: false, clickError: new Error('nope') }))
     await manager.open({})
-    const r = parse(await tools.guiClick({ text: '不存在' }))
+    const r = parse(await tools.guiClick({ text: '正文内容' }))
     expect(r.ok).toBe(false)
     expect(r.error).toBe('error')
     expect(r.message).toBe('nope')
@@ -161,7 +173,7 @@ describe('server tools', () => {
     const timeout = Object.assign(new Error('locator.click: Timeout 8000ms'), { name: 'TimeoutError' })
     const { tools, manager } = makeTools(makePage({ clickOk: false, clickError: timeout }))
     await manager.open({})
-    const r = parse(await tools.guiClick({ text: '慢元素' }))
+    const r = parse(await tools.guiClick({ text: '正文内容' }))
     expect(r.error).toBe('timeout')
     const { tools: t2, manager: m2 } = makeTools(makePage({ matches: 0 }))
     await m2.open({})
@@ -195,17 +207,18 @@ describe('server tools', () => {
     expect(r.message).toBe('not an input')
   })
 
-  it('guiDom slices head, reports total_length and truncated (issue #6)', async () => {
-    const long = 'x'.repeat(900)
+  it('guiDom slices head, reports total_length and truncated (issue #6); MCP default head is 2000 (issue #12)', async () => {
+    const long = 'x'.repeat(3000)
     const { tools, manager } = makeTools(makePage({ body: long }))
     await manager.open({})
     const dom = parse(await tools.guiDom({ head: 10 }))
-    expect(dom).toEqual({ ok: true, text: 'x'.repeat(10), total_length: 900, truncated: true })
+    expect(dom).toEqual({ ok: true, text: 'x'.repeat(10), total_length: 3000, truncated: true })
     const full = parse(await tools.guiDom({}))
     expect(full.truncated).toBe(true)
-    expect(full.total_length).toBe(900)
-    const short = parse(await tools.guiDom({ head: 1000 }))
+    expect(full.text).toBe('x'.repeat(2000))
+    const short = parse(await tools.guiDom({ head: 4000 }))
     expect(short.truncated).toBe(false)
+    expect(short.total_length).toBe(3000)
   })
 
   it('guiDom fails honestly when the body is unreadable instead of returning empty text (issue #1)', async () => {
@@ -258,7 +271,7 @@ describe('server tools', () => {
     })
     const openImpl = async () => ({
       page: interactive,
-      context: { close: vi.fn(async () => {}), newPage: vi.fn(async () => scenarioPageNew) },
+      context: { close: vi.fn(async () => {}), newPage: vi.fn(async () => scenarioPageNew), pages: () => [interactive] },
       collectors: { consoleErrors: ['e1'], failedRequests: ['f1'], crashCount: () => 0 },
       authMode: 'cookie',
       baseUrl: 'http://127.0.0.1:3080/',
@@ -291,5 +304,37 @@ describe('server tools', () => {
     const schemaErr = tools.wrapError(new ScenarioSchemaError([{ path: 'name', message: 'x' }]))
     expect(parse(schemaErr)).toEqual({ error: 'INVALID_SCENARIO', errors: [{ path: 'name', message: 'x' }] })
     expect(tools.wrapError(new Error('boom'))).toBeNull()
+  })
+
+  it('tab addressing routes tools to the indexed context page (issue #9)', async () => {
+    const main = makePage({ body: 'MAIN' })
+    const popup = makePage({ url: 'http://127.0.0.1:3080/popup?token=secret', body: 'POPUP_CONTENT' })
+    const openImpl = async () => ({
+      page: main,
+      context: { close: vi.fn(async () => {}), newPage: async () => makePage(), pages: () => [main, popup] },
+      collectors: { consoleErrors: [], failedRequests: [], crashCount: () => 0 },
+      authMode: 'cookie',
+      baseUrl: 'http://127.0.0.1:3080/',
+    })
+    const manager = makeManager(main, openImpl)
+    const tools = createTools({ manager, shotsDir: () => dir })
+    await manager.open({})
+    const open1 = parse(await tools.guiOpen({}))
+    expect(open1.tabs).toBe(2)
+    const dom = parse(await tools.guiDom({ tab: 1 }))
+    expect(dom.text).toBe('POPUP_CONTENT')
+    const bad = await tools.guiDom({ tab: 5 }).catch(e => e)
+    expect(bad).toBeInstanceOf(UsageError)
+    expect(parse(tools.wrapError(bad)).error).toBe('NO_SUCH_TAB')
+  })
+
+  it('guiShot fullPage passes through to screenshot (issue #9)', async () => {
+    const page = makePage()
+    const { tools, manager } = makeTools(page)
+    await manager.open({})
+    await tools.guiShot({ name: 'fp', fullPage: true })
+    expect(page.screenshot).toHaveBeenCalledWith(expect.objectContaining({ fullPage: true }))
+    await tools.guiShot({ name: 'vp' })
+    expect(page.screenshot).toHaveBeenLastCalledWith(expect.not.objectContaining({ fullPage: true }))
   })
 })

@@ -103,4 +103,13 @@ describe('scenario schema: asserts (incl. inline)', () => {
       expect(e.errors.map(x => x.path)).toEqual(['name', 'steps[0].wait', 'asserts[0]'])
     }
   })
+  it('frame variants: click.frame, rule-level frame, and textVisible object form (issue #9)', () => {
+    expect(valid({ ...base, steps: [{ click: { text: '确定', frame: '#frame1' } }] })).not.toThrow()
+    expect(valid({ ...base, asserts: [{ count: { selector: 'button', equals: 1, frame: '#frame1' } }] })).not.toThrow()
+    expect(valid({ ...base, asserts: [{ textVisible: { text: 'IFRAME', frame: '#frame1' } }] })).not.toThrow()
+    expect(valid({ ...base, asserts: [{ textNotVisible: { text: 'IFRAME', frame: '#frame1' } }] })).not.toThrow()
+    expect(valid({ ...base, steps: [{ click: { text: '确定', frame: '' } }] })).toThrow(/frame/)
+    expect(valid({ ...base, asserts: [{ textVisible: { text: '', frame: '#frame1' } }] })).toThrow(/text/)
+    expect(valid({ ...base, asserts: [{ textVisible: { text: 'x', frame: '#f', extra: 1 } }] })).toThrow(/unknown/)
+  })
 })

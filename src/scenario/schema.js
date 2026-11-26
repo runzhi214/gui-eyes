@@ -26,7 +26,7 @@ function validateClickArg(arg, path, errors) {
   if (modes.length !== 1) {
     return fail(errors, path, `click must pick exactly one of text | role+name | selector, got [${modes.join(',')}]`)
   }
-  const extra = Object.keys(arg).filter(k => !['text', 'role', 'name', 'selector', 'exact', 'ifNotVisible'].includes(k))
+  const extra = Object.keys(arg).filter(k => !['text', 'role', 'name', 'selector', 'exact', 'ifNotVisible', 'frame'].includes(k))
   if (extra.length > 0) fail(errors, path, `unknown click field(s): ${extra.join(',')}`)
   if (arg.text !== undefined && !isString(arg.text)) fail(errors, path, 'click.text must be a string')
   if (arg.role !== undefined) {
@@ -37,6 +37,7 @@ function validateClickArg(arg, path, errors) {
   if (arg.ifNotVisible !== undefined && !isNonEmptyString(arg.ifNotVisible)) {
     fail(errors, path, 'click.ifNotVisible must be a non-empty string')
   }
+  if (arg.frame !== undefined && !isNonEmptyString(arg.frame)) fail(errors, path, 'click.frame must be a non-empty selector string')
 }
 
 function validateAssertArg(rule, arg, path, errors) {
@@ -48,7 +49,7 @@ function validateAssertArg(rule, arg, path, errors) {
     return true
   }
   const needStr = (field, extra = []) => {
-    const allowed = ['selector', 'attr', 'regex', 'hasText', 'equals', 'all', ...extra]
+    const allowed = ['selector', 'attr', 'regex', 'hasText', 'equals', 'all', 'frame', ...extra]
     if (!isNonEmptyString(arg[field])) fail(errors, path, `${rule}.${field} must be a non-empty string`)
     const unknown = Object.keys(arg).filter(k => !allowed.includes(k))
     if (unknown.length > 0) fail(errors, path, `${rule} unknown field(s): ${unknown.join(',')}`)
@@ -56,7 +57,12 @@ function validateAssertArg(rule, arg, path, errors) {
   switch (rule) {
     case 'textVisible':
     case 'textNotVisible':
-      if (!isNonEmptyString(arg)) fail(errors, path, `${rule} must be a non-empty string`)
+      // string 或 {text, frame}(issue #9: iframe 内文本断言);frame 缺省即主文档
+      if (isNonEmptyString(arg)) return
+      if (typeof arg !== 'object' || arg === null || Array.isArray(arg)) {
+        return fail(errors, path, `${rule} must be a non-empty string or {text, frame}`)
+      }
+      needStr('text', ['text'])
       return
     case 'attrMatches':
       if (!needObj()) return
@@ -114,10 +120,11 @@ function validateStepEntry(entry, path, errors) {
       if (typeof arg !== 'object' || arg === null || Array.isArray(arg)) {
         return fail(errors, argPath, 'type must be {into, text}')
       }
-      const unknown = Object.keys(arg).filter(k => !['into', 'text'].includes(k))
+      const unknown = Object.keys(arg).filter(k => !['into', 'text', 'frame'].includes(k))
       if (unknown.length > 0) fail(errors, argPath, `type unknown field(s): ${unknown.join(',')}`)
       if (!isNonEmptyString(arg.into)) fail(errors, argPath, 'type.into must be a non-empty selector')
       if (!isString(arg.text)) fail(errors, argPath, 'type.text must be a string')
+      if (arg.frame !== undefined && !isNonEmptyString(arg.frame)) fail(errors, argPath, 'type.frame must be a non-empty selector string')
       return
     }
     case 'shot':

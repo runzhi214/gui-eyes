@@ -22,6 +22,10 @@ export function createCollectors(page, { consoleSlice = CONSOLE_ERROR_SLICE } = 
     const entry = failedRequestEntry({ status: r.status(), url: r.url() })
     if (entry) failedRequests.push(entry)
   })
+  // 网络层失败(issue #10): DNS 失败/连接拒绝/证书错误不产生 response 事件,必须有独立观测
+  page.on('requestfailed', (r) => {
+    failedRequests.push(`NET ${r.failure()?.errorText ?? 'unknown'} ${maskToken(r.url())}`)
+  })
   page.on('crash', () => { crashes += 1 })
   return { consoleErrors, failedRequests, crashCount: () => crashes }
 }

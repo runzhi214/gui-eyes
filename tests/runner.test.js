@@ -6,7 +6,7 @@ import { resolveTarget } from '../src/core/session.js'
 import { runStep } from '../src/core/primitives.js'
 import { runScenario } from '../src/scenario/runner.js'
 
-// fake page: 记录原语调用,可编程响应
+// fake page: 记录原语调用,可编程响应;getByText 按 body 子串给真实计数(与 click 同口径的断言路径)
 const makePage = ({ body = '', failOn = null } = {}) => {
   const calls = []
   const page = {
@@ -17,12 +17,26 @@ const makePage = ({ body = '', failOn = null } = {}) => {
     locator(sel) {
       if (sel === 'body') return { async innerText() { calls.push(['bodyText']); return body } }
       const loc = {
+        async count() { return 1 },
         async click(opts) { calls.push(['click', sel, opts]); if (failOn === 'click') throw new Error('click boom') },
         async fill(text, opts) { calls.push(['fill', sel, text, opts]) },
       }
-      return { first: () => loc, ...loc }
+      loc.first = () => loc
+      loc.filter = () => loc
+      return loc
     },
-    getByText(text, opts) { calls.push(['getByText', text, opts]); return this.locator(`text:${text}`) },
+    getByText(text, opts) {
+      calls.push(['getByText', text, opts])
+      const n = body.includes(text) ? 1 : 0
+      const loc = {
+        filter: () => ({ ...loc, count: async () => n }),
+        async count() { return n },
+        async click(cOpts) { calls.push(['click', `text:${text}`, cOpts]); if (failOn === 'click') throw new Error('click boom') },
+        async fill(t, fOpts) { calls.push(['fill', `text:${text}`, t, fOpts]) },
+      }
+      loc.first = () => loc
+      return loc
+    },
     getByRole(role, opts) { calls.push(['getByRole', role, opts]); return this.locator(`role:${role}`) },
   }
   return page
@@ -30,8 +44,9 @@ const makePage = ({ body = '', failOn = null } = {}) => {
 
 describe('resolveTarget', () => {
   it('dsh-web default carries the 3080 baseUrl and dsh-cookie auth', () => {
-    // baseUrl 来自 target 注册表声明(非回退默认),按链定义记 baseUrlExplicit:true
-    expect(resolveTarget({})).toEqual({ baseUrl: 'http://127.0.0.1:3080/', auth: 'dsh-cookie', baseUrlExplicit: true })
+    // 注册表地址是内置缺省而非声明: baseUrlExplicit false,可被 env 重定向(issue #11 新链)
+    expect(resolveTarget({})).toEqual({ baseUrl: 'http://127.0.0.1:3080/', auth: 'dsh-cookie', baseUrlExplicit: false })
+    expect(resolveTarget({ env: { GUI_EYES_BASE_URL: 'http://e/' } }).baseUrl).toBe('http://e/')
   })
   it('plain target needs an explicit baseUrl; env counts as explicit (issue #6)', () => {
     expect(resolveTarget({ target: 'plain', explicitBaseUrl: 'http://h/' }))
@@ -115,7 +130,7 @@ describe('runScenario', () => {
     const { steps } = await runScenario(page, scenario, fakeCtx())
     expect(steps).toEqual([
       { action: 'wait', arg: 10, ok: true },
-      { action: 'click', arg: { text: '不存在' }, ok: false },
+      { action: 'click', arg: { text: '不存在' }, ok: false, message: 'click boom' },
       { action: 'wait', arg: 20, ok: true },
     ])
   })
@@ -137,6 +152,6 @@ describe('runScenario', () => {
     const { asserts } = await runScenario(page, scenario, c)
     expect(asserts[0].ok).toBe(true)
     expect(c.bodyText).toBe('最终正文')
-    expect(page.calls.filter(x => x[0] === 'bodyText')).toHaveLength(2) // assert 采 1 次 + 结尾采 1 次
+    expect(page.calls.filter(x => x[0] === 'bodyText')).toHaveLength(1) // textVisible 走 getByText 引擎;结尾采 1 次
   })
 })

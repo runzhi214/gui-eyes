@@ -13,6 +13,8 @@ import { ScenarioSchemaError } from '../scenario/schema.js'
 
 export const SETTLE_MS = 800
 export const DEFAULT_HEAD_CHARS = 600
+// MCP gui_dom 默认头部(issue #12): 设置面板类验证 600 偏小;CLI 契约默认仍 600 不变
+export const MCP_DOM_HEAD_CHARS = 2000
 export const MATCHED_TEXT_SLICE = 80
 export const MESSAGE_SLICE = 120
 
@@ -41,6 +43,16 @@ const reasonFor = (e) => {
   return 'error'
 }
 
+// tab 寻址(issue #9): popup/多页场景下用 context.pages() 定位;越界报结构化错误而非崩溃
+const pageFor = (session, tab) => {
+  if (tab === undefined) return session.page
+  const pages = session.context.pages()
+  if (!Number.isInteger(tab) || tab < 0 || tab >= pages.length) {
+    throw new UsageError('NO_SUCH_TAB', `tab ${tab} 不存在;当前 context 共 ${pages.length} 页`)
+  }
+  return pages[tab]
+}
+
 export function createTools({ manager, shotsDir = defaultShotsDir, settleMs = SETTLE_MS, load = loadScenario, run = runScenario } = {}) {
   const settle = (page) => page.waitForTimeout(settleMs)
 
@@ -58,6 +70,7 @@ export function createTools({ manager, shotsDir = defaultShotsDir, settleMs = SE
         final_url: maskToken(session.page.url()),
         title,
         body_text_head: body.slice(0, DEFAULT_HEAD_CHARS),
+        tabs: session.context.pages().length,
         console_errors: shapeConsoleErrors(session.collectors.consoleErrors),
         failed_requests: shapeFailedRequests(session.collectors.failedRequests),
         degraded: degradedReasons.length > 0,
@@ -66,13 +79,15 @@ export function createTools({ manager, shotsDir = defaultShotsDir, settleMs = SE
     },
 
     async guiClick(spec) {
-      const { page } = manager.current()
+      const session = manager.current()
+      const { tab, ...clickSpec } = spec ?? {}
+      const page = pageFor(session, tab)
       const audit = await clickAudit(locateAll(page, spec))
       let error = audit.matches === 0 ? 'not-found' : null
       let failureMessage
       if (error === null) {
         try {
-          await clickLocator(page, spec).click({ timeout: CLICK_TIMEOUT_MS })
+          await clickLocator(page, clickSpec).click({ timeout: CLICK_TIMEOUT_MS })
         } catch (e) {
           error = reasonFor(e)
           failureMessage = clipMessage(e)
@@ -87,11 +102,12 @@ export function createTools({ manager, shotsDir = defaultShotsDir, settleMs = SE
       })
     },
 
-    async guiType({ into, text, locate } = {}) {
+    async guiType({ into, text, locate, tab } = {}) {
       if ((into !== undefined) === (locate !== undefined)) {
         throw new UsageError('BAD_TYPE_TARGET', 'into(CSS 选择器) 与 locate(text|role+name|selector) 必须二选一')
       }
-      const { page } = manager.current()
+      const session = manager.current()
+      const page = pageFor(session, tab)
       const full = locate !== undefined ? locateAll(page, locate) : page.locator(into)
       const audit = await clickAudit(full)
       let error = audit.matches === 0 ? 'not-found' : null
@@ -113,21 +129,23 @@ export function createTools({ manager, shotsDir = defaultShotsDir, settleMs = SE
       })
     },
 
-    async guiShot({ name, outDir } = {}) {
-      const { page } = manager.current()
+    async guiShot({ name, outDir, fullPage, tab } = {}) {
+      const session = manager.current()
+      const page = pageFor(session, tab)
       const dir = outDir !== undefined ? resolve(outDir) : shotsDir()
       mkdirSync(dir, { recursive: true })
       const path = join(dir, `${name}-${Date.now()}.png`)
       try {
-        await page.screenshot({ path })
+        await page.screenshot({ path, ...(fullPage === true ? { fullPage: true } : {}) })
         return json({ ok: true, path })
       } catch (e) {
         return json({ ok: false, error: clipMessage(e) })
       }
     },
 
-    async guiDom({ head = DEFAULT_HEAD_CHARS } = {}) {
-      const { page } = manager.current()
+    async guiDom({ head = MCP_DOM_HEAD_CHARS, tab } = {}) {
+      const session = manager.current()
+      const page = pageFor(session, tab)
       let full
       try {
         full = await page.locator('body').innerText({ timeout: 5000 })
@@ -142,8 +160,9 @@ export function createTools({ manager, shotsDir = defaultShotsDir, settleMs = SE
       })
     },
 
-    async guiAssert({ asserts }) {
-      const { page } = manager.current()
+    async guiAssert({ asserts, tab }) {
+      const session = manager.current()
+      const page = pageFor(session, tab)
       const results = await runAsserts(page, asserts)
       return json({ ok: results.every(r => r.ok), results })
     },

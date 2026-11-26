@@ -29,6 +29,18 @@ describe('createCollectors', () => {
     handlers.crash()
     expect(c.crashCount()).toBe(2)
   })
+  it('records network-layer failures as NET entries (issue #10: 无 response 事件的失败)', () => {
+    const { page, handlers } = makePage()
+    const { failedRequests } = createCollectors(page)
+    handlers.requestfailed({ url: () => 'http://127.0.0.1:9/?token=secret', failure: () => ({ errorText: 'net::ERR_CONNECTION_REFUSED' }) })
+    handlers.requestfailed({ url: () => 'http://gone.invalid/', failure: () => ({ errorText: 'net::ERR_NAME_NOT_RESOLVED' }) })
+    handlers.requestfailed({ url: () => 'http://x/', failure: () => null })
+    expect(failedRequests).toEqual([
+      'NET net::ERR_CONNECTION_REFUSED http://127.0.0.1:9/?token=***',
+      'NET net::ERR_NAME_NOT_RESOLVED http://gone.invalid/',
+      'NET unknown http://x/',
+    ])
+  })
 })
 
 describe('failedRequestEntry (guards re-exported from mask.test coverage)', () => {

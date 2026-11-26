@@ -1,45 +1,63 @@
+import { locateAll } from './primitives.js'
+
 const DETAIL_SLICE = 80
 const RULE_SLICE = 40
+const MESSAGE_SLICE = 120
 
 const clip = (s, n) => String(s).slice(0, n)
 const bySelector = (sel) => clip(sel, RULE_SLICE)
+const clipMessage = (e) => clip(e?.message ?? e, MESSAGE_SLICE)
 
-// 不吞错:正文读取失败(页面关闭/崩溃)向上抛,由 runAssertEntry 记录为「执行异常」ok:false。
-// 旧版 .catch(() => '') 会让 textNotVisible 在坏页上空文通过(假绿)。
-async function bodyText(page) {
-  return page.locator('body').innerText()
+// frame 根定位(issue #9): rule.frame 存在时经由 frameLocator 进入 iframe
+const rootIn = (page, frame) => (frame === undefined ? page : page.frameLocator(frame))
+
+// 可见文本判定与 click 同源(issue #9): getByText 穿透 open shadow、filter({visible:true}) 只计可见元素、
+// 子串大小写不敏感(= click 的 text 默认语义)——「点得中」与「断言得到」口径一致。
+// 旧 innerText 引擎对 shadow 文本不可见、对隐藏元素误命中,已废弃;跨元素边界的文本两侧同样匹配不到(口径一致)。
+async function visibleTextCount(page, text, frame) {
+  return locateAll(rootIn(page, frame), text).filter({ visible: true }).count()
 }
 
 const ASSERT_ENGINES = {
-  async textVisible(page, text) {
-    const body = await bodyText(page)
-    return { ok: body.includes(text), detail: body.includes(text) ? '命中' : `未命中: 页面无文本 "${text}"` }
+  async textVisible(page, arg) {
+    const { text, frame } = typeof arg === 'string' ? { text: arg, frame: undefined } : arg
+    const n = await visibleTextCount(page, text, frame)
+    return { ok: n > 0, detail: n > 0 ? '命中' : `未命中: 页面无可见文本 "${text}"` }
   },
-  async textNotVisible(page, text) {
-    const body = await bodyText(page)
-    return { ok: !body.includes(text), detail: body.includes(text) ? `未通过: 页面仍有文本 "${text}"` : '未出现' }
+  async textNotVisible(page, arg) {
+    const { text, frame } = typeof arg === 'string' ? { text: arg, frame: undefined } : arg
+    const n = await visibleTextCount(page, text, frame)
+    return { ok: n === 0, detail: n === 0 ? '未出现' : `未通过: 页面仍有可见文本 "${text}"` }
   },
-  async attrMatches(page, { selector, attr, regex }) {
-    const value = await page.locator(selector).first().getAttribute(attr).catch(() => null)
+  async attrMatches(page, { selector, attr, regex, frame }) {
+    const value = await rootIn(page, frame).locator(selector).first().getAttribute(attr)
     if (value === null) return { ok: false, detail: `未通过: ${bySelector(selector)} 无 ${attr} 属性` }
     const re = new RegExp(regex)
     return re.test(value)
       ? { ok: true, detail: clip(value, DETAIL_SLICE) }
       : { ok: false, detail: `不匹配: ${clip(value, DETAIL_SLICE)}` }
   },
-  async count(page, { selector, hasText, equals }) {
-    const locator = page.locator(selector, hasText !== undefined ? { hasText } : {})
+  async count(page, { selector, hasText, equals, frame }) {
+    const locator = rootIn(page, frame).locator(selector, hasText !== undefined ? { hasText } : {})
     const actual = await locator.count()
     return { ok: actual === equals, detail: `期望 ${equals}, 实际 ${actual}` }
   },
-  async textMatches(page, { selector, regex }) {
-    const text = await page.locator(selector).first().innerText().catch(() => null)
-    if (text === null) return { ok: false, detail: `未通过: ${bySelector(selector)} 无匹配元素` }
+  async textMatches(page, { selector, regex, frame }) {
+    let text
+    try {
+      text = await rootIn(page, frame).locator(selector).first().innerText()
+    } catch (e) {
+      // TimeoutError = 无匹配元素(语义性缺失);其它错误向上抛记「执行异常」
+      if (e?.name === 'TimeoutError') return { ok: false, detail: `未通过: ${bySelector(selector)} 无匹配元素` }
+      throw e
+    }
     const re = new RegExp(regex)
-    return { ok: re.test(text), detail: re.test(text) ? clip(text, DETAIL_SLICE) : `不匹配: "${clip(text, DETAIL_SLICE)}"` }
+    return re.test(text)
+      ? { ok: true, detail: clip(text, DETAIL_SLICE) }
+      : { ok: false, detail: `不匹配: "${clip(text, DETAIL_SLICE)}"` }
   },
-  async checked(page, { selector, all }) {
-    const boxes = page.locator(selector)
+  async checked(page, { selector, all, frame }) {
+    const boxes = rootIn(page, frame).locator(selector)
     const total = await boxes.count()
     if (total === 0) return { ok: false, detail: '未通过: 无匹配元素' }
     const states = await Promise.all(Array.from({ length: total }, (_, i) => boxes.nth(i).isChecked()))
@@ -50,10 +68,12 @@ const ASSERT_ENGINES = {
 
 function ruleLabel(rule, arg) {
   if (typeof arg === 'string') return `${rule} "${arg}"`
-  if (rule === 'attrMatches') return `${rule} ${bySelector(arg.selector)} @${arg.attr}`
-  if (rule === 'count') return `count ${bySelector(arg.selector)}${arg.hasText !== undefined ? ` hasText:"${arg.hasText}"` : ''} equals:${arg.equals}`
-  if (rule === 'textMatches') return `${rule} ${bySelector(arg.selector)}`
-  if (rule === 'checked') return `${rule} ${bySelector(arg.selector)}`
+  const frame = arg.frame !== undefined ? ` @frame:${bySelector(arg.frame)}` : ''
+  if (rule === 'attrMatches') return `${rule} ${bySelector(arg.selector)} @${arg.attr}${frame}`
+  if (rule === 'count') return `count ${bySelector(arg.selector)}${arg.hasText !== undefined ? ` hasText:"${arg.hasText}"` : ''}${frame} equals:${arg.equals}`
+  if (rule === 'textMatches') return `${rule} ${bySelector(arg.selector)}${frame}`
+  if (rule === 'checked') return `${rule} ${bySelector(arg.selector)}${frame}`
+  if (rule === 'textVisible' || rule === 'textNotVisible') return `${rule} "${arg.text}"${frame}`
   return rule
 }
 
@@ -65,7 +85,7 @@ export async function runAssertEntry(page, entry) {
     const { ok, detail } = await ASSERT_ENGINES[rule](page, arg)
     return { rule: label, ok, detail }
   } catch (e) {
-    return { rule: label, ok: false, detail: `执行异常: ${e.message}` }
+    return { rule: label, ok: false, detail: `执行异常: ${clipMessage(e)}` }
   }
 }
 

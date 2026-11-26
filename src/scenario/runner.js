@@ -1,6 +1,8 @@
 import { runStep } from '../core/primitives.js'
 import { runAssertEntry } from '../core/asserts.js'
 
+const MESSAGE_SLICE = 120
+
 export async function runScenario(page, scenario, ctx) {
   const steps = []
   const asserts = []
@@ -14,7 +16,8 @@ export async function runScenario(page, scenario, ctx) {
       await runStep(page, entry, ctx)
       steps.push({ action, arg: entry[action], ok: true })
     } catch (e) {
-      steps.push({ action, arg: entry[action], ok: false })
+      // 失败原因不丢弃(issue #10): 与 MCP 交互路径的 error/message 口径对齐,级联失效显式可见
+      steps.push({ action, arg: entry[action], ok: false, message: String(e?.message ?? e).slice(0, MESSAGE_SLICE) })
     }
   }
   for (const entry of scenario.asserts) {
