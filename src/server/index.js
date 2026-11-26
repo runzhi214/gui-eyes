@@ -32,7 +32,7 @@ const tabParam = z.number().int().min(0).optional()
   .describe('目标页索引(gui_open 报告的 tabs 总数;点击 target=_blank 弹出新页后用 tab 切换,如 tab:1)')
 
 export function createMcpServer({ manager = createSessionManager(), tools = createTools({ manager }) } = {}) {
-  const server = new McpServer({ name: 'gui-eyes', version: '0.3.0' }, { instructions: SERVER_INSTRUCTIONS })
+  const server = new McpServer({ name: 'gui-eyes', version: '0.4.0' }, { instructions: SERVER_INSTRUCTIONS })
   const guarded = (handler) => async (args) => {
     try {
       return await handler(args)
@@ -103,7 +103,7 @@ export function createMcpServer({ manager = createSessionManager(), tools = crea
 
   server.registerTool('gui_run', {
     title: '跑场景文件',
-    description: `回归测试一个 YAML 场景(steps+asserts 全链,适合反复跑的验证流)。在独立页面执行(同 context 共享 cookie,不扰动交互会话页;场景 target 与当前会话不同时会切换底层会话),返回步骤摘要(失败步骤附 message 原因)、逐条断言、截图路径、正文头与失败请求观测(含网络层)。${SAFETY_NOTE}。${UNTRUSTED_NOTE}`,
+    description: `回归测试一个 YAML 场景(steps+asserts 全链,适合反复跑的验证流)。在独立临时浏览器执行(storageState 注入鉴权,连接池与交互会话彻底隔离——长驻交互页的长连不再饿死场景请求,issue #14),返回步骤摘要(失败步骤附 message 原因)、逐条断言、截图路径、正文头、失败请求观测(含网络层)与 pending_requests(未 settle 的 in-flight 请求——SSE/长轮询类长连属正常 pending,挂起的业务请求才是故障信号)。${SAFETY_NOTE}。${UNTRUSTED_NOTE}`,
     inputSchema: { scenario: z.string().describe('场景 YAML 绝对路径') },
   }, guarded(tools.guiRun))
 

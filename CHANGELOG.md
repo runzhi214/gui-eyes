@@ -2,6 +2,16 @@
 
 版本号语义：MAJOR.MINOR.PATCH——MINOR 含功能性增量，PATCH 为修复。每版对应 GitCode master 上的同名 tag（GitHub 镜像仓触发 CI 发布到 GitHub Packages）。
 
+## [0.4.0] — 2026-11-26
+
+修复验收 issue #14（gui_run 场景页与长驻交互页共享连接池导致请求静默挂起）。
+
+### 变更
+
+- **gui_run 改独立临时浏览器**：不再与交互会话共享 context——`chromium.launch()` 非持久实例 + `storageState` 复制注入（30 天 dsh cookie 随行），连接池/存储彻底隔离。同 context 长连占坑饿死场景请求的整族问题（Chromium per-host 6 连接上限）根除；同时改善多 MCP 会话并发 singleton 限制的一半场景。机制已由合成复现器确认（6 长连占满 → 同 context 文档请求 30s 超时；独立 context 立即恢复）。
+- **pending_requests 观测**：gui_run 响应新增 `pending_requests`（未 settle 的 in-flight 请求，掩码，≤15）——挂起请求可归因，不再伪装成断言失败。注意语义：SSE / 长轮询类长连属正常 pending，业务请求挂起才是故障信号。
+- observe 增 in-flight 跟踪（request / requestfinished / requestfailed 三事件维护）。
+
 ## [0.3.0] — 2026-11-26
 
 dsh-browser 调研（[omdsh-dev/dsh-browser](https://github.com/omdsh-dev/dsh-browser)）五项借鉴落地。

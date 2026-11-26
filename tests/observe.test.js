@@ -41,6 +41,20 @@ describe('createCollectors', () => {
       'NET unknown http://x/',
     ])
   })
+  it('tracks in-flight requests: pending until finished/failed, masked (issue #14)', () => {
+    const { page, handlers } = makePage()
+    const c = createCollectors(page)
+    // 同一请求 = 同一对象引用(playwright 事件语义);不同 url 各一对象
+    const one = { url: () => 'http://h/api/one?token=secret', failure: () => null }
+    const two = { url: () => 'http://h/api/two', failure: () => ({ errorText: 'net::ERR_ABORTED' }) }
+    handlers.request(one)
+    handlers.request(two)
+    expect(c.pendingRequests()).toEqual(['http://h/api/one?token=***', 'http://h/api/two'])
+    handlers.requestfinished(one)
+    expect(c.pendingRequests()).toEqual(['http://h/api/two'])
+    handlers.requestfailed(two)
+    expect(c.pendingRequests()).toEqual([])
+  })
 })
 
 describe('failedRequestEntry (guards re-exported from mask.test coverage)', () => {

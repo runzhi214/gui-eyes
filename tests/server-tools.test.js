@@ -259,10 +259,12 @@ describe('server tools', () => {
     expect(r.results.map(x => x.ok)).toEqual([true, true, false])
   })
 
-  it('guiRun loads, runs on an isolated page, closes it and reports body_text_head (issue #5)', async () => {
+  it('guiRun runs on an ephemeral browser with storageState injected, isolated from the interactive session (issue #5 + #14)', async () => {
     const interactive = makePage()
     const scenarioPageNew = makePage({ body: '场景正文' })
     let seenPage = null
+    let seenStorageState = 'not-called'
+    let browserClosed = false
     const load = vi.fn(async () => ({ name: 'demo', target: 'dsh-web', steps: [{ dom: {} }], asserts: [{ textVisible: '正文内容' }], outDir: undefined, head: undefined, description: undefined }))
     const run = vi.fn(async (page, scenario, ctx) => {
       seenPage = page
@@ -272,23 +274,67 @@ describe('server tools', () => {
     })
     const openImpl = async () => ({
       page: interactive,
-      context: { close: vi.fn(async () => {}), newPage: vi.fn(async () => scenarioPageNew), pages: () => [interactive] },
+      context: {
+        close: vi.fn(async () => {}),
+        newPage: vi.fn(async () => makePage()),
+        pages: () => [interactive],
+        storageState: vi.fn(async () => { seenStorageState = 'called'; return { cookies: [], origins: [] } }),
+      },
       collectors: { consoleErrors: ['e1'], failedRequests: ['f1'], crashCount: () => 0 },
       authMode: 'cookie',
       baseUrl: 'http://127.0.0.1:3080/',
     })
+    const runLaunch = vi.fn(async () => ({
+      newContext: vi.fn(async (opts) => {
+        expect(opts.storageState).toEqual({ cookies: [], origins: [] })
+        return { newPage: async () => scenarioPageNew }
+      }),
+      close: vi.fn(async () => { browserClosed = true }),
+    }))
     const manager = makeManager(interactive, openImpl)
-    const t = createTools({ manager, shotsDir: () => dir, load, run })
+    const t = createTools({ manager, shotsDir: () => dir, load, run, runLaunch })
     const out = parse(await t.guiRun({ scenario: 'demo.yaml' }))
     expect(out.ok).toBe(true)
     expect(out.body_text_head).toBe('场景结束时正文')
     expect(out.shots).toEqual([join(dir, 'x.png')])
+    expect(out.pending_requests).toEqual([])
     expect(load).toHaveBeenCalledWith('demo.yaml')
     expect(seenPage).toBe(scenarioPageNew)
     expect(seenPage).not.toBe(interactive)
     expect(interactive.goto).not.toHaveBeenCalled()
     expect(scenarioPageNew.goto).toHaveBeenCalled()
-    expect(scenarioPageNew.close).toHaveBeenCalled()
+    expect(runLaunch).toHaveBeenCalled()
+    expect(seenStorageState).toBe('called')
+    expect(browserClosed).toBe(true)
+  })
+
+  it('guiRun reports pending_requests for in-flight requests that never settle (issue #14)', async () => {
+    const interactive = makePage()
+    let pageHandlers
+    const load = vi.fn(async () => ({ name: 'demo', target: 'dsh-web', steps: [], asserts: [], outDir: undefined, head: undefined, description: undefined }))
+    const run = vi.fn(async () => ({ steps: [], asserts: [] }))
+    const scenarioPage = makePage()
+    scenarioPage.on = (event, fn) => {
+      pageHandlers = pageHandlers ?? {}
+      pageHandlers[event] = fn
+    }
+    const openImpl = async () => ({
+      page: interactive,
+      context: { close: vi.fn(async () => {}), newPage: vi.fn(async () => makePage()), pages: () => [interactive], storageState: vi.fn(async () => null) },
+      collectors: { consoleErrors: [], failedRequests: [], crashCount: () => 0 },
+      authMode: 'cookie',
+      baseUrl: 'http://127.0.0.1:3080/',
+    })
+    const runLaunch = vi.fn(async () => ({
+      newContext: vi.fn(async () => ({ newPage: async () => scenarioPage }),
+      ),
+      close: vi.fn(async () => {}),
+    }))
+    const manager = makeManager(interactive, openImpl)
+    const t = createTools({ manager, shotsDir: () => dir, load, run, runLaunch })
+    const out = parse(await t.guiRun({ scenario: 'demo.yaml' }))
+    expect(out.pending_requests).toEqual([])
+    expect(out.ok).toBe(true)
   })
 
   it('guiShot defaults shotsDir to the engine repo shots/<today> (regression: default must stay a function)', async () => {

@@ -8,6 +8,8 @@ import { buildInventory, diffInventory, COLLECT_SCRIPT, DSH_EL_ATTR } from '../c
 import { loadScenario } from '../scenario/load.js'
 import { runScenario } from '../scenario/runner.js'
 import { maskToken, shapeConsoleErrors, shapeFailedRequests } from '../core/report.js'
+import { launchEphemeralBrowser } from '../core/browser.js'
+import { VIEWPORT } from '../core/config.js'
 import { UsageError } from '../core/usage.js'
 import { AuthError } from '../core/auth.js'
 import { ScenarioSchemaError } from '../scenario/schema.js'
@@ -86,7 +88,7 @@ async function writeBackRefs(page, inventory) {
   }, payload)
 }
 
-export function createTools({ manager, shotsDir = defaultShotsDir, settleMs = SETTLE_MS, load = loadScenario, run = runScenario } = {}) {
+export function createTools({ manager, shotsDir = defaultShotsDir, settleMs = SETTLE_MS, load = loadScenario, run = runScenario, runLaunch } = {}) {
   const settle = (page) => page.waitForTimeout(settleMs)
 
   // delta 基线按会话内存管理: force 重开即清空(诚实语义——重开=全新基线)
@@ -253,12 +255,16 @@ export function createTools({ manager, shotsDir = defaultShotsDir, settleMs = SE
       const session = await manager.open({ target: loaded.target })
       const outDir = loaded.outDir !== undefined ? resolve(loaded.outDir) : shotsDir()
       mkdirSync(outDir, { recursive: true })
-      // 隔离执行页:同 context(共享 cookie,不撞 chromium singleton 锁),不扰动交互会话页(issue #5)
-      const page = await session.context.newPage()
-      const collectors = createCollectors(page)
-      await page.goto(session.baseUrl, { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {})
+      // 独立临时浏览器(issue #14 根治): 连接池/存储与交互会话彻底隔离,同 context 长连占坑
+      // 饿死场景页的整族问题消失;storageState 复制注入,30 天 dsh cookie 随行,鉴权不受影响。
+      const storageState = await session.context.storageState().catch(() => null)
+      const browser = await launchEphemeralBrowser({ ...(runLaunch !== undefined ? { launch: runLaunch } : {}) })
       const ctx = { baseUrl: session.baseUrl, outDir, timeoutScale: 1, shots: [], bodyText: null }
       try {
+        const context = await browser.newContext({ ...(storageState !== null ? { storageState } : {}), viewport: VIEWPORT })
+        const page = await context.newPage()
+        const collectors = createCollectors(page)
+        await page.goto(session.baseUrl, { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {})
         const { steps, asserts } = await run(page, loaded, ctx)
         const ok = steps.every(s => s.ok) && asserts.every(a => a.ok)
         return json({
@@ -269,9 +275,11 @@ export function createTools({ manager, shotsDir = defaultShotsDir, settleMs = SE
           body_text_head: (ctx.bodyText ?? '').slice(0, loaded.head ?? DEFAULT_HEAD_CHARS),
           console_errors: shapeConsoleErrors(collectors.consoleErrors),
           failed_requests: shapeFailedRequests(collectors.failedRequests),
+          // 挂起观测(issue #14): 未 settle 的 in-flight 请求显式列出,不再伪装成断言失败
+          pending_requests: collectors.pendingRequests().slice(0, 15),
         })
       } finally {
-        await page.close().catch(() => {})
+        await browser.close().catch(() => {})
       }
     },
 
