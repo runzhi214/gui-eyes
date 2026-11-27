@@ -26,7 +26,8 @@ jobs:
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       - run: pnpm test
-      # publishConfig 已指向 npmjs(双渠道策略);CI 渠道显式回指 GHPR
+      # 双渠道策略: 主名 gui-eyes(npmjs 裸名),GHPR 强制 scoped——发布前临时改名
+      - run: npm pkg set name=@runzhi214/gui-eyes
       - run: npm publish --registry=https://npm.pkg.github.com
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
