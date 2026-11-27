@@ -213,7 +213,7 @@ describe('server tools', () => {
     const { tools, manager } = makeTools(makePage({ body: long }))
     await manager.open({})
     const dom = parse(await tools.guiDom({ head: 10 }))
-    expect(dom).toEqual({ ok: true, text: 'x'.repeat(10), total_length: 3000, truncated: true })
+    expect(dom).toEqual({ ok: true, text: 'x'.repeat(10), total_length: 3000, truncated: true, console_errors: ['e1'] })
     const full = parse(await tools.guiDom({}))
     expect(full.truncated).toBe(true)
     expect(full.text).toBe('x'.repeat(2000))
@@ -349,6 +349,39 @@ describe('server tools', () => {
     expect(r.path).toMatch(new RegExp(`shots/\\d{4}-\\d{2}-\\d{2}/unit-default-\\d+\\.png$`))
   })
 
+  it('guiShot wait: condition-first then capture; timeout distinguishes absent-vs-mistimed (issue #20)', async () => {
+    const page = makePage()
+    const waitCalls = []
+    page.getByText = vi.fn((text) => {
+      const loc = { first: () => ({ waitFor: async (opts) => { waitCalls.push({ text, opts }); if (text === '永不出现') throw Object.assign(new Error('wait: Timeout 8000ms'), { name: 'TimeoutError' }) } }) }
+      return loc
+    })
+    const { tools, manager } = makeTools(page)
+    await manager.open({})
+    const ok = parse(await tools.guiShot({ name: 'wait-ok', wait: { text: '导出成功', timeoutMs: 6000 } }))
+    expect(ok.ok).toBe(true)
+    expect(waitCalls[0]).toEqual({ text: '导出成功', opts: { timeout: 6000 } })
+    const miss = parse(await tools.guiShot({ name: 'wait-miss', wait: { text: '永不出现' } }))
+    expect(miss.ok).toBe(false)
+    expect(miss.error).toBe('timeout')
+    expect(miss.path).toBeUndefined()
+  })
+
+  it('guiShot selector crops the first matching element (issue #22)', async () => {
+    const page = makePage()
+    const elLoc = { screenshot: vi.fn(async ({ path }) => ({ path })) }
+    page.locator = vi.fn((sel) => {
+      if (sel === 'body') return { innerText: async () => 'x' }
+      expect(sel).toBe('.toast')
+      return { ...elLoc, first: () => elLoc }
+    })
+    const { tools, manager } = makeTools(page)
+    await manager.open({})
+    const r = parse(await tools.guiShot({ name: 'crop', selector: '.toast' }))
+    expect(r.ok).toBe(true)
+    expect(elLoc.screenshot).toHaveBeenCalledTimes(1)
+  })
+
   it('wrapError shapes schema errors as INVALID_SCENARIO and passes others through', async () => {
     const { tools } = makeTools(makePage())
     const schemaErr = tools.wrapError(new ScenarioSchemaError([{ path: 'name', message: 'x' }]))
@@ -425,6 +458,52 @@ describe('server tools', () => {
     const second = parse(await tools.guiDom({ delta: true }))
     expect(second.changed_refs.map(c => c.text)).toEqual(['新增'])
     expect(second.removed_refs).toEqual([])
+  })
+
+  it('guiDom selector returns outerHTML of the first match; 0 matches is explicit (issue #16)', async () => {
+    const page = makePage({ body: 'x' })
+    page.locator = vi.fn((sel) => {
+      if (sel === 'body') return { innerText: async () => 'x' }
+      const loc = {
+        count: async () => (sel === '.gone' ? 0 : 1),
+        first: () => loc,
+        evaluate: async (fn) => fn({ outerHTML: '<div class="toast">导出成功</div>' }),
+      }
+      return loc
+    })
+    const { tools, manager } = makeTools(page)
+    await manager.open({})
+    const hit = parse(await tools.guiDom({ selector: '.toast' }))
+    expect(hit).toMatchObject({ ok: true, matched: 1, outerHTML: '<div class="toast">导出成功</div>', truncated: false })
+    const miss = parse(await tools.guiDom({ selector: '.gone' }))
+    expect(miss).toMatchObject({ ok: true, matched: 0 })
+  })
+
+  it('guiDom eval executes JS and returns JSON-serialized result (issue #18)', async () => {
+    const page = makePage({ body: 'x' })
+    page.evaluate = vi.fn(async (js) => {
+      if (js === '1+1') return 2
+      throw new Error('boom in page')
+    })
+    const { tools, manager } = makeTools(page)
+    await manager.open({})
+    const r = parse(await tools.guiDom({ eval: '1+1' }))
+    expect(r).toEqual({ ok: true, eval_result: '2' })
+    const bad = parse(await tools.guiDom({ eval: 'throw x' }))
+    expect(bad.ok).toBe(false)
+    expect(bad.error).toContain('boom')
+  })
+
+  it('guiClick obscured failure names the intercepting element and carries full call log (issue #19)', async () => {
+    const covered = new Error('locator.click: Timeout 8000ms\nCall log:\n  - element is visible, stable and enabled\n  - element <div class="backdrop"> intercepts pointer events')
+    covered.name = 'TimeoutError'
+    const { tools, manager } = makeTools(makePage({ clickOk: false, clickError: covered }))
+    await manager.open({})
+    const r = parse(await tools.guiClick({ text: '正文内容' }))
+    expect(r.ok).toBe(false)
+    expect(r.error).toBe('obscured')
+    expect(r.obscured_by).toBe('<div class="backdrop">')
+    expect(r.message).toContain('intercepts pointer events')
   })
 
   it('guiShot fullPage passes through to screenshot (issue #9)', async () => {

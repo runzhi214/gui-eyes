@@ -80,6 +80,10 @@ function ruleLabel(rule, arg) {
 export async function runAssertEntry(page, entry) {
   const [rule] = Object.keys(entry)
   const arg = entry[rule]
+  // 未知规则名: 报期望的规则清单,不伪装成引擎损坏(issue #15)
+  if (ASSERT_ENGINES[rule] === undefined) {
+    return { rule: String(rule).slice(0, RULE_SLICE), ok: false, detail: `未知断言规则 "${rule}"——键名必须直接是规则名(单键对象,如 {"textVisible": "文本"});可用: ${Object.keys(ASSERT_ENGINES).join(' | ')}` }
+  }
   const label = ruleLabel(rule, arg)
   try {
     const { ok, detail } = await ASSERT_ENGINES[rule](page, arg)

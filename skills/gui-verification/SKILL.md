@@ -40,6 +40,14 @@ gui_open → gui_click / gui_type 交互 → gui_assert 断言 → gui_shot 截�
 - `gui_click` 的 text 非精确、多匹配点 DOM 序第一个——响应 `matches` 字段暴露命中数,`matches > 1` 时换更精确的定位或 `exact: true`。
 - MCP 工具描述与清单是会话启动时快照;引擎更新后需新会话才见新工具面。
 
+## 判读分流(先读:别把断言能答的问题送去读图)
+
+- 「**页面上有没有文字 X**」→ `gui_assert` 的 textVisible(穿透 shadow、不受视口限制、秒回)——**勿读图**
+- 「**某容器下有没有节点/崩溃锚点**」→ `gui_dom {selector: "..."}` 看 outerHTML
+- 「**任意运行时状态**(模块表/全局变量/DOM 结构)」→ `gui_dom {eval: "JS 表达式"}`
+- 「**布局/样式对不对**、视觉效果」→ 才需要截图判读;目标元素明确时用 `gui_shot {selector}` 裁剪,提示词框定「右下角」之类的歧义自然消失
+- 「**瞬态 UI**(toast 存活窗短)」→ `gui_shot {wait: {text|selector, timeoutMs}}` 先等命中再截,别 sleep+盲抓
+
 ## 多模态分诊(文本会话要看图时必读)
 
 当前会话模型**没有图像输入能力**时(调读图工具报 "does not declare image input" 之类):

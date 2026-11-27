@@ -2,6 +2,28 @@
 
 版本号语义：MAJOR.MINOR.PATCH——MINOR 含功能性增量，PATCH 为修复。每版对应 GitCode master 上的同名 tag（GitHub 镜像仓触发 CI 发布到 GitHub Packages）。
 
+## [0.5.0] — 2026-11-27
+
+实测反馈修复：验收 issue #15–#22（插件验收会话实战提出，全采纳）。
+
+### 新增
+
+- **gui_dom selector 参数**：返回首个命中元素 outerHTML（截断 4000）——结构可观测（容器下有没有节点/崩溃锚点），结构盲区清零。
+- **gui_dom eval 参数**：JS 求值逃生舱，任意运行时状态 3 秒定性（与 selector 互补：一个查结构、一个查状态）。
+- **gui_dom 附最近 console errors**：交互会话采集器数据随每次读取透出（组件崩溃的第一信号不再只归 gui_open 一次性上报）。
+- **gui_shot wait 参数**：`{text|selector, timeoutMs}` 条件先行——瞬态 UI（toast 存活窗）不再 sleep+盲抓，超时如实报，「没出现」与「抓错时机」可区分。
+- **gui_shot selector 裁剪**：只截目标元素区域，判读目标明确后提示词歧义消失。
+
+### 修复
+
+- **gui_assert schema 判别联合**：每条断言必须是单键对象且键名为规则名，错误形态在装载期即拒并给引导文案；执行期未知规则报规则清单而非 `ASSERT_ENGINES not a function`（schema 错误不再伪装引擎损坏）。
+- **gui_click obscured 根因可见**：call log 解析 `intercepts pointer events`/`covered by` 点名遮挡元素（`obscured_by` 字段）；message 截断 120→400。
+- **ref 失效显式提示**：React 重渲染抹掉标记后报「重新 withRefs 采集」而非通用 timeout。
+
+### 文档
+
+- skill 增「判读分流」段：文字存在性走断言（勿读图）、结构走 selector、运行时状态走 eval、布局样式才读图——多模态链路只接真正需要它的问题。
+
 ## [0.4.0] — 2026-11-26
 
 修复验收 issue #14（gui_run 场景页与长驻交互页共享连接池导致请求静默挂起）。

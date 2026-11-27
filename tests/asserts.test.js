@@ -165,6 +165,17 @@ describe('assert engine: checked', () => {
   })
 })
 
+describe('assert engine: unknown rule reports the rule list (issue #15)', () => {
+  it('reports the expected single-key shape instead of ASSERT_ENGINES not-a-function', async () => {
+    const page = makePage({ body: 'x' })
+    const r = await runAssertEntry(page, { rule: 'textVisible', text: 'x' })
+    expect(r.ok).toBe(false)
+    expect(r.detail).toContain('未知断言规则 "rule"')
+    expect(r.detail).toContain('textVisible | textNotVisible')
+    expect(r.detail).toContain('{"textVisible": "文本"}')
+  })
+})
+
 describe('assert engine: failure containment', () => {
   it('keeps running after a throwing rule and records the exception', async () => {
     const page = { locator: () => { throw new Error('boom') }, getByText: () => { throw new Error('boom') } }

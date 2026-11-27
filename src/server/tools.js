@@ -19,7 +19,8 @@ export const DEFAULT_HEAD_CHARS = 600
 // MCP gui_dom 默认头部(issue #12): 设置面板类验证 600 偏小;CLI 契约默认仍 600 不变
 export const MCP_DOM_HEAD_CHARS = 2000
 export const MATCHED_TEXT_SLICE = 80
-export const MESSAGE_SLICE = 120
+// #19: call log 里的 intercepts/covered by 是定性信息,120 太窄——放宽到 400 仍可控
+export const MESSAGE_SLICE = 400
 
 // 截图默认落引擎仓 shots/<今日>/(绝对路径,agent 拿到即可 read_image)
 const REPO_ROOT = resolve(join(fileURLToPath(import.meta.url), '../../..'))
@@ -40,10 +41,18 @@ async function clickAudit(locator) {
   return { matches, ...(text !== '' ? { matched_text: text.slice(0, MATCHED_TEXT_SLICE) } : {}) }
 }
 
+// 失败分类;obscured 时从 call log 点名遮挡者(issue #19: intercepts pointer events/covered by 是定性信息)
 const reasonFor = (e) => {
-  if (e?.name === 'TimeoutError') return 'timeout'
-  if (/intercept|outside of the viewport/i.test(e?.message ?? '')) return 'obscured'
+  const msg = e?.message ?? ''
+  if (e?.name === 'TimeoutError') return /intercept|covered by|outside of the viewport/i.test(msg) ? 'obscured' : 'timeout'
+  if (/intercept|covered by|outside of the viewport/i.test(msg)) return 'obscured'
   return 'error'
+}
+
+// 从 call log 抽遮挡者描述行(issue #19)
+const obscuredBy = (e) => {
+  const m = String(e?.message ?? '').match(/<([^>]+)>\s+(?:intercepts pointer events|is covered by)/i)
+  return m ? `<${m[1]}>` : undefined
 }
 
 // tab 寻址(issue #9): popup/多页场景下用 context.pages() 定位;越界报结构化错误而非崩溃
@@ -136,12 +145,18 @@ export function createTools({ manager, shotsDir = defaultShotsDir, settleMs = SE
         : await clickAudit(locateAll(page, clickSpec))
       let error = audit.matches === 0 ? 'not-found' : null
       let failureMessage
+      let obscuredByEl
       if (error === null) {
         try {
           await locator.click({ timeout: CLICK_TIMEOUT_MS })
         } catch (e) {
           error = reasonFor(e)
           failureMessage = clipMessage(e)
+          if (error === 'obscured') obscuredByEl = obscuredBy(e)
+          // ref 编号被 React 重渲染抹掉后只剩通用 timeout——显式提示快照过期(#21)
+          if (error === 'timeout' && byRef) {
+            failureMessage = `${failureMessage}\n提示: ref ${clickSpec.ref} 的 data-dsh-el 标记可能已被页面重渲染清除——重新 gui_dom {withRefs:true} 采集后再点`
+          }
         }
       } else if (byRef) {
         failureMessage = `ref ${clickSpec.ref} 不在场——先用 gui_dom {withRefs: true} 列出编号清单`
@@ -151,7 +166,7 @@ export function createTools({ manager, shotsDir = defaultShotsDir, settleMs = SE
         ok: error === null,
         final_url: maskToken(page.url()),
         ...audit,
-        ...(error !== null ? { error, message: failureMessage } : {}),
+        ...(error !== null ? { error, message: failureMessage, ...(obscuredByEl !== undefined ? { obscured_by: obscuredByEl } : {}) } : {}),
       })
     },
 
@@ -187,23 +202,66 @@ export function createTools({ manager, shotsDir = defaultShotsDir, settleMs = SE
       })
     },
 
-    async guiShot({ name, outDir, fullPage, tab } = {}) {
+    async guiShot({ name, outDir, fullPage, tab, wait, selector } = {}) {
       const session = manager.current()
       const page = pageFor(session, tab)
+      // 条件先行(issue #20): 瞬态 UI(toast 等)先等条件命中再截,不再 sleep+盲抓;
+      // 超时如实报 timeout,「没出现」与「抓错时机」从此可区分
+      if (wait !== undefined) {
+        try {
+          if (wait.text !== undefined) {
+            await page.getByText(wait.text).first().waitFor({ timeout: wait.timeoutMs ?? 8000 })
+          } else if (wait.selector !== undefined) {
+            await page.locator(wait.selector).first().waitFor({ timeout: wait.timeoutMs ?? 8000 })
+          } else {
+            throw new UsageError('BAD_WAIT', 'wait 需要 {text} 或 {selector} 二选一(可选 timeoutMs)')
+          }
+        } catch (e) {
+          const reason = e?.name === 'TimeoutError' ? 'timeout' : 'error'
+          return json({ ok: false, error: reason, message: clipMessage(e) })
+        }
+      }
       const dir = outDir !== undefined ? resolve(outDir) : shotsDir()
       mkdirSync(dir, { recursive: true })
       const path = join(dir, `${name}-${Date.now()}.png`)
       try {
-        await page.screenshot({ path, ...(fullPage === true ? { fullPage: true } : {}) })
+        // selector 裁剪(issue #22): 只截目标元素区域,判读提示词歧义自然消失
+        if (selector !== undefined) {
+          await page.locator(selector).first().screenshot({ path })
+        } else {
+          await page.screenshot({ path, ...(fullPage === true ? { fullPage: true } : {}) })
+        }
         return json({ ok: true, path })
       } catch (e) {
         return json({ ok: false, error: clipMessage(e) })
       }
     },
 
-    async guiDom({ head = MCP_DOM_HEAD_CHARS, tab, withRefs, delta } = {}) {
+    async guiDom({ head = MCP_DOM_HEAD_CHARS, tab, withRefs, delta, selector, eval: js } = {}) {
       const session = manager.current()
       const page = pageFor(session, tab)
+      // JS 求值逃生舱(issue #18): 与 selector 读取互补——结构问题 3 秒定性,不再绕读图
+      if (js !== undefined) {
+        try {
+          const result = await page.evaluate(js)
+          const text = (() => { try { return JSON.stringify(result, null, 1) } catch { return String(result) } })()
+          return json({ ok: true, eval_result: text.slice(0, 2000) })
+        } catch (e) {
+          return json({ ok: false, error: clipMessage(e) })
+        }
+      }
+      // 选择器作用域读取(issue #16): outerHTML 让「容器下有没有节点/崩溃锚点」直接可见
+      if (selector !== undefined) {
+        try {
+          const el = page.locator(selector).first()
+          const count = await el.count()
+          if (count === 0) return json({ ok: true, selector, matched: 0 })
+          const outer = await el.evaluate((node) => node.outerHTML)
+          return json({ ok: true, selector, matched: 1, outerHTML: outer.slice(0, 4000), truncated: outer.length > 4000 })
+        } catch (e) {
+          return json({ ok: false, error: clipMessage(e) })
+        }
+      }
       let full
       try {
         full = await page.locator('body').innerText({ timeout: 5000 })
@@ -215,6 +273,10 @@ export function createTools({ manager, shotsDir = defaultShotsDir, settleMs = SE
         text: full.slice(0, head),
         total_length: full.length,
         truncated: full.length > head,
+      }
+      // console 采集器暴露(issue #17): 数据一直在内存,交互后崩溃的第一信号随取随用
+      if (session.collectors.consoleErrors.length > 0) {
+        response.console_errors = shapeConsoleErrors(session.collectors.consoleErrors)
       }
       // 编号清单(design-inventory-delta #1): 结构指纹编号 + data-dsh-el 写回供 ref 直达
       if (withRefs === true) {
