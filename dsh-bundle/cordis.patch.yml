@@ -1,0 +1,12 @@
+# gui-eyes MCP 接线 —— 完全可移植:路径经 profileContext.dir 在装载期求值,
+# 不含任何机器特定绝对路径。要求: profile 内已安装 gui-eyes(npmjs)。
+- insert:
+    - id: gui-eyes-mcp
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: gui-eyes
+        transport: stdio
+        command: node
+        args:
+          - !!js "ctx.get('profileContext').dir + '/node_modules/gui-eyes/bin/gui-eyes-mcp.js'"
+        failOnStartupError: true

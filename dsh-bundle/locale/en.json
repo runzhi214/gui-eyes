@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "gui-eyes MCP connection",
+    "description": "Injects the gui-eyes MCP server (stdio) so every session's agent gets gui_open / gui_click / gui_type / gui_shot / gui_dom / gui_assert / gui_run tools for looking at web GUIs. Sessions persist across calls with automatic DSH cookie re-minting; screenshots land in the engine repo's shots/ directory and the tool returns an absolute path."
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "@runzhi214/gui-eyes-dsh",
+  "version": "0.4.0",
+  "private": true,
+  "type": "module",
+  "description": "gui-eyes 的 dsh profile 接入 bundle: 安装后所有新会话自动获得 mcp__gui-eyes__* 七工具。要求同 profile 或全局已安装 gui-eyes。",
+  "exports": { "./locale/*.json": "./locale/*.json", "./icon": "./icon.svg" },
+  "files": ["cordis.patch.yml", "locale/*.json", "icon.svg"],
+  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } }
+}
