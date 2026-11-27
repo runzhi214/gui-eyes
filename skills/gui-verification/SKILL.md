@@ -27,8 +27,8 @@ gui_open → gui_click / gui_type 交互 → gui_assert 断言 → gui_shot 截�
 | 你想观测的 | 正确做法 |
 |---|---|
 | 主文档文本 | `gui_dom` / `textVisible` 断言 |
-| iframe 内文本/元素 | 断言或点击都带 `frame: "<iframe 选择器>"`(`textVisible: {text: X, frame: "#frame1"}`) |
-| Shadow DOM 内文本 | `textVisible` 可命中(getByText 穿透 open shadow);`gui_dom` 读不到 shadow 文本——断言用 gui_assert,别用 gui_dom 误判「页面没有」 |
+| iframe 内文本/元素 | 断言或点击都带 `frame: "<iframe 选择器>"`(`textVisible: {text: X, frame: "#frame1"}`);读文本用 `gui_dom {frame: "#frame1"}` |
+| Shadow DOM 内文本 | `textVisible` 断言可命中(getByText 穿透 open shadow);读文本用 `gui_dom {includeShadow: true}`(主文档+shadow 合并,响应带 shadow_segments) |
 | 新标签页(target=_blank) | `gui_open` 报告的 `tabs` 是总页数;`gui_click/gui_type/gui_dom/gui_shot/gui_assert` 传 `tab: 1` 观测新页 |
 | 视口外内容 | 文本断言不受视口限制;截图要整页传 `fullPage: true` |
 
@@ -36,9 +36,9 @@ gui_open → gui_click / gui_type 交互 → gui_assert 断言 → gui_shot 截�
 
 ## 已知坑
 
-- `gui_type` 对富文本编辑器(ProseMirror 类)`fill("")` 清空无效——不要用空串清空,填入替换内容。
 - `gui_click` 的 text 非精确、多匹配点 DOM 序第一个——响应 `matches` 字段暴露命中数,`matches > 1` 时换更精确的定位或 `exact: true`。
-- MCP 工具描述与清单是会话启动时快照;引擎更新后需新会话才见新工具面。
+- MCP 工具描述与清单是会话启动时快照;引擎更新后需新会话才见新工具面。每个响应带 `engine_version` 尾字段——与引擎最新版本对照不符即开新会话(漂移自检,0.6.1 起)。
+- `gui_type` 对 contenteditable 富文本(ProseMirror 类)自动走键盘路径(0.6.0 起):空串=纯清空,普通输入框照旧 fill——无需再绕「不用空串清空」的旧坑。
 
 ## 判读分流(先读:别把断言能答的问题送去读图)
 

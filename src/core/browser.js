@@ -5,6 +5,27 @@ export const LAUNCH_PLANS = [
   { label: 'chrome-channel', options: { channel: 'chrome' } },
 ]
 
+// 启动自愈指引(#28): 双 plan 皆败且报错指向浏览器缺失时,附上可执行的自愈路径。
+// 版本钉死事实如实陈述(不假称可自动下载): 引擎钉 playwright 1.62.1 → chromium-1234。
+export const LAUNCH_SELF_HEAL_HINT = [
+  '自愈指引: 本引擎钉死 playwright 1.62.1(需 chromium-1234)。',
+  '(1) 安装对应版本 chromium: npx playwright@1.62.1 install chromium;',
+  '国内网络先 export PLAYWRIGHT_DOWNLOAD_HOST=https://npmmirror.com/mirrors/playwright/;',
+  '(2) 或确保本机装有 Google Chrome——启动会自动兜底 channel:"chrome"。',
+].join(' ')
+
+const MISSING_BROWSER_PATTERN = /Executable doesn't exist|Failed to launch (the )?(browser|chrome)|chrome.*ENOENT/i
+
+function withSelfHeal(error) {
+  try {
+    const msg = String(error?.message ?? error)
+    if (MISSING_BROWSER_PATTERN.test(msg) && !msg.includes('自愈指引')) {
+      error.message = `${msg}\n${LAUNCH_SELF_HEAL_HINT}`
+    }
+  } catch { /* message 只读等极端形态:原样抛出 */ }
+  return error
+}
+
 const defaultLaunch = ({ profileDir, headless, viewport, httpCredentials, ...options }) =>
   chromium.launchPersistentContext(profileDir, { headless, viewport, ...(httpCredentials !== undefined ? { httpCredentials } : {}), ...options })
 
@@ -17,7 +38,7 @@ export async function launchBrowserContext({ profileDir, viewport, headless = tr
       lastError = error
     }
   }
-  throw lastError
+  throw withSelfHeal(lastError)
 }
 
 export async function firstPage(context) {
@@ -39,5 +60,5 @@ export async function launchEphemeralBrowser({ headless = true, viewport, httpCr
       lastError = error
     }
   }
-  throw lastError
+  throw withSelfHeal(lastError)
 }

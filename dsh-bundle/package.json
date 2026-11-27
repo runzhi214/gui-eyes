@@ -1,6 +1,6 @@
 {
   "name": "@runzhi214/gui-eyes-dsh",
-  "version": "0.5.1",
+  "version": "0.6.1",
   "type": "module",
   "description": "给 dsh 会话装上 gui-eyes(网页 GUI 观测与验证引擎)。安装本插件即含引擎本体,无需单独安装 gui-eyes;所有新会话自动获得 mcp__gui-eyes__* 七工具。",
   "exports": {
@@ -18,7 +18,12 @@
     }
   },
   "dependencies": {
-    "gui-eyes": "^0.5.0"
+    "gui-eyes": "^0.6.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/runzhi214/gui-eyes.git",
+    "directory": "dsh-bundle"
   },
   "license": "MIT"
 }

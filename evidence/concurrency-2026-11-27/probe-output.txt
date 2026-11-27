@@ -1,0 +1,6 @@
+both contexts up
+p1 text: one
+p2 text: two
+after p2 exists, p1 text: oneB
+p2 still: two
+p2 after c1 close: two

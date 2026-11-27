@@ -1,4 +1,5 @@
 import { homedir } from 'node:os'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { UsageError } from './usage.js'
 
@@ -34,6 +35,26 @@ export function httpCredentialsFromEnv(env = process.env) {
   const i = raw.indexOf(':')
   if (i <= 0) throw new UsageError('BAD_HTTP_CREDS', 'GUI_EYES_HTTP_CREDS 必须为 user:pass 形式')
   return { username: raw.slice(0, i), password: raw.slice(i + 1) }
+}
+
+// GUI_EYES_STORAGE_STATE=<path> → storageState JSON 导入(#25,仅 plain 通道使用):
+// 从别处导出的登录态(cookies + localStorage)一次性注入采集会话,免去表单登录
+export function storageStateFromEnv(env = process.env) {
+  const raw = env.GUI_EYES_STORAGE_STATE
+  if (!raw) return undefined
+  let parsed
+  try {
+    parsed = JSON.parse(readFileSync(raw, 'utf8'))
+  } catch {
+    throw new UsageError('BAD_STORAGE_STATE', 'GUI_EYES_STORAGE_STATE 指向的文件不存在或不是合法 JSON')
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new UsageError('BAD_STORAGE_STATE', 'storageState 文件必须是 {"cookies":[...],"origins":[...]} 形式的 JSON')
+  }
+  return {
+    cookies: Array.isArray(parsed.cookies) ? parsed.cookies : [],
+    origins: Array.isArray(parsed.origins) ? parsed.origins : [],
+  }
 }
 
 // GUI_EYES_LAUNCH_JSON='{"ignoreHTTPSErrors":true,...}' → 白名单透传浏览器启动参数

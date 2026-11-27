@@ -1,0 +1,21 @@
+{
+  "steps": [
+    {
+      "name": "strict 停跑",
+      "stopped_at": 2,
+      "step_count": 3,
+      "post_asserts_ran": 0
+    },
+    {
+      "name": "缺省 catch-continue 对照",
+      "stopped_at_absent": true,
+      "step_count": 3,
+      "post_asserts_ran": 1
+    },
+    {
+      "name": "engine_version 尾字段",
+      "engine_version": "0.6.1",
+      "text_has": true
+    }
+  ]
+}

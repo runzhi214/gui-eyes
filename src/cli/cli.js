@@ -74,13 +74,15 @@ function baseReport({ session, collectors }) {
   }))
 }
 
-function reportJson({ session, base, steps, headChars, shots, asserts }) {
+function reportJson({ session, base, steps, headChars, shots, asserts, stoppedAt }) {
   return {
     auth_mode: session.authMode,
     final_url: maskToken(session.page.url()),
     title: base.title,
     steps,
     ...(asserts !== undefined ? { asserts } : {}),
+    // strict 停跑(#27): 失败步骤在 scenario.steps 中的下标,后续步骤/断言未执行
+    ...(stoppedAt !== undefined && stoppedAt !== null ? { stopped_at: stoppedAt } : {}),
     console_errors: base.console_errors,
     failed_requests: base.failed_requests,
     body_text_head: base.body.slice(0, headChars),
@@ -134,12 +136,13 @@ async function cmdRun(p, io) {
   try {
     mkdirSync(outDir, { recursive: true })
     const ctx = { baseUrl: session.baseUrl, outDir, timeoutScale: p.timeoutScale, shots: [], bodyText: null }
-    const { steps, asserts } = await io.runScenario(session.page, scenario, ctx)
+    const { steps, asserts, stopped_at: stoppedAt } = await io.runScenario(session.page, scenario, ctx)
     const base = await baseReport({ session, collectors: session.collectors })
     base.body = ctx.bodyText ?? base.body
     io.out(JSON.stringify(reportJson({
       session, base,
       steps, asserts,
+      stoppedAt,
       headChars: scenario.head ?? DEFAULT_HEAD_CHARS,
       shots: ctx.shots,
     }), null, 2))

@@ -1,0 +1,31 @@
+{
+  "steps": [
+    {
+      "name": "guiDom 默认",
+      "has_main": true,
+      "iframe_leaked": false,
+      "shadow_leaked": false,
+      "shadow_field_absent": true
+    },
+    {
+      "name": "guiDom frame",
+      "reads_iframe": true
+    },
+    {
+      "name": "guiDom includeShadow",
+      "has_main": true,
+      "has_shadow": true,
+      "shadow_segments": 1
+    },
+    {
+      "name": "guiType contenteditable 替换",
+      "ok": true,
+      "text_now": "键盘新内容"
+    },
+    {
+      "name": "guiType contenteditable 清空",
+      "ok": true,
+      "text_now": ""
+    }
+  ]
+}

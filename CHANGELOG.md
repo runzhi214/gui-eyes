@@ -2,6 +2,40 @@
 
 版本号语义：MAJOR.MINOR.PATCH——MINOR 含功能性增量，PATCH 为修复。每版对应 GitCode master 上的同名 tag（GitHub 镜像仓触发 CI 发布到 GitHub Packages）。
 
+> 发布纪律（2026-11-27 起）：NPM 对外发布与 version bump 均须经用户同意后才执行。
+
+## [0.6.1] — 2026-11-27
+
+README 已知缺陷分析批次收尾：低优先级 issue #27–#29 修复（版本号 PATCH 位为用户拍板，#27 的功能增量并入本位）。**未发布**——0.6.0 与 0.6.1 均停在审批线上。
+
+### 新增
+
+- **场景 strict 模式**（#27）：顶层可选 `strict: true`——遇第一个失败步骤即停，后续步骤与后置断言不对坏页面级联，报告标 `stopped_at` 下标；内联断言失败不触发停跑；缺省 catch-continue 契约零变化。
+- **engine_version 尾字段**（#29）：全部 7 个 MCP 工具响应统一注入（`json()` 助手单点覆盖），与 server info 同源（新单源 `src/server/version.js`，bump 只改 version.js + package.json 两处）——会话工具清单是启动快照，该字段把版本漂移变可见，agent 自判是否需要开新会话。
+
+### 修复
+
+- **浏览器启动自愈指引**（#28）：双 plan（bundled chromium + chrome channel）皆败且报错匹配浏览器缺失特征时，错误消息追加可执行指引——`npx playwright@1.62.1 install chromium`、国内网络 `PLAYWRIGHT_DOWNLOAD_HOST` 镜像、Chrome channel 兜底；无关启动错误零污染。
+
+## [0.6.0] — 2026-11-27
+
+README 已知缺陷分析批次：中优先级 issue #23–#26 修复/证伪（低优先级 #27–#29 立案待修）。
+
+### 新增
+
+- **gui_dom frame 参数**（#23）：iframe 内文本与 selector 读取经 frameLocator 进入（与 click/type 同构）——「能点进 iframe 却读不了 iframe 文本」的不对称消除。
+- **gui_dom includeShadow 参数**（#23）：`true` 时主文档与 open shadow 文本合并（响应带 `shadow_segments`），默认关——既有输出口径零变化；与 frame/selector 互斥报 `BAD_DOM_SCOPE`；eval 恒在主文档执行。
+- **storageState 导入**（#25）：`GUI_EYES_STORAGE_STATE=<path>`，仅 plain 通道——cookies 经 addCookies、localStorage 经 addInitScript 按 origin 水合；注入先于首跳导航，坏文件报 `BAD_STORAGE_STATE` 不起无鉴权会话。表单登录复用用法（场景 goto+type+click 一次，cookie 落持久目录）同步文档化。
+
+### 修复
+
+- **gui_type 富文本清空**（#24）：contenteditable（ProseMirror 类）自动走键盘路径——`isContentEditable` 检测 → click → ControlOrMeta+A → Delete → pressSequentially（空串=纯清空）；普通 input/textarea 照旧 fill，检测失败兜底回 fill。场景 type 步骤同享（`fillOrKeyboard` 原语）。
+- **并发限制缺陷证伪**（#26）：同 profile 目录双 persistent context 实测可并存、互不干扰、关一存一（探针归档 `evidence/concurrency-2026-11-27/`）——原「chromium singleton 锁」为 M2.1 时推测性限制，从未复现；README 缺陷条删除，不针对证伪的失败模式写防御代码。
+
+### 已知缺陷条目更新
+
+- README「可见性口径」条改写为能力矩阵（frame/includeShadow 寻址方式）；「gui_type 清空富文本无效」「无登录能力」「并发限制」三条撤销（修复/证伪/落地）。
+
 ## [0.5.0] — 2026-11-27
 
 实测反馈修复：验收 issue #15–#22（插件验收会话实战提出，全采纳）。

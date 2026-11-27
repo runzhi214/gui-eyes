@@ -1,5 +1,5 @@
 import { mkdirSync } from 'node:fs'
-import { TARGETS, VIEWPORT, profileDir, tokenFilePaths, resolveBaseUrl, httpCredentialsFromEnv, launchOptionsFromEnv } from './config.js'
+import { TARGETS, VIEWPORT, profileDir, tokenFilePaths, resolveBaseUrl, httpCredentialsFromEnv, storageStateFromEnv, launchOptionsFromEnv } from './config.js'
 import { launchBrowserContext, firstPage } from './browser.js'
 import { ensureDshCookieAuth } from './auth.js'
 import { createCollectors } from './observe.js'
@@ -32,6 +32,20 @@ export async function openSession({ target, explicitBaseUrl, env, viewport, head
   if (auth === 'dsh-cookie') {
     authMode = await ensureDshCookieAuth({ page, baseUrl, tokenFiles: tokenFilePaths() })
   } else {
+    // storageState 导入(#25): 仅 plain 通道——dsh-web 的 cookie 引擎自管,不叠加外来态
+    const storage = storageStateFromEnv(env)
+    if (storage !== undefined) {
+      if (storage.cookies.length > 0) await context.addCookies(storage.cookies)
+      if (storage.origins.length > 0) {
+        // addInitScript 每次导航前按 origin 水合 localStorage(evaluate 同规:只收一个额外参数,打包传递)
+        await context.addInitScript((payload) => {
+          for (const origin of payload.origins) {
+            if (location.origin !== origin.origin) continue
+            for (const item of origin.localStorage ?? []) localStorage.setItem(item.name, item.value)
+          }
+        }, { origins: storage.origins })
+      }
+    }
     await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {})
     authMode = 'none'
   }

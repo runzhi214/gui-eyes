@@ -1,6 +1,6 @@
 export const STEP_KEYS = ['goto', 'wait', 'click', 'type', 'shot', 'dom', 'assert']
 export const ASSERT_RULES = ['textVisible', 'textNotVisible', 'attrMatches', 'count', 'textMatches', 'checked']
-export const SCENARIO_FIELDS = ['name', 'description', 'target', 'outDir', 'head', 'steps', 'asserts']
+export const SCENARIO_FIELDS = ['name', 'description', 'target', 'outDir', 'head', 'strict', 'steps', 'asserts']
 export const TARGET_KEYS = ['dsh-web', 'plain']
 export const AUTH_KEYS = ['dsh-cookie', 'none']
 
@@ -171,6 +171,8 @@ export function validateScenario(obj) {
   if (obj.target !== undefined) validateTarget(obj.target, errors)
   if (obj.outDir !== undefined && !isNonEmptyString(obj.outDir)) fail(errors, 'outDir', 'must be a non-empty path string')
   if (obj.head !== undefined && (!Number.isInteger(obj.head) || obj.head <= 0)) fail(errors, 'head', 'must be a positive integer')
+  // strict(#27): 可选严格模式——遇第一个失败步骤即停;缺省 catch-continue 契约不变
+  if (obj.strict !== undefined && typeof obj.strict !== 'boolean') fail(errors, 'strict', 'must be a boolean')
   if (!Array.isArray(obj.steps)) fail(errors, 'steps', 'must be an array')
   else obj.steps.forEach((entry, i) => validateStepEntry(entry, `steps[${i}]`, errors))
   if (obj.asserts !== undefined) {
@@ -184,6 +186,7 @@ export function validateScenario(obj) {
     target: obj.target ?? 'dsh-web',
     outDir: obj.outDir,
     head: obj.head,
+    strict: obj.strict === true,
     steps: obj.steps,
     asserts: obj.asserts ?? [],
   }

@@ -7,7 +7,7 @@ import { runStep } from '../src/core/primitives.js'
 import { runScenario } from '../src/scenario/runner.js'
 
 // fake page: 记录原语调用,可编程响应;getByText 按 body 子串给真实计数(与 click 同口径的断言路径)
-const makePage = ({ body = '', failOn = null } = {}) => {
+const makePage = ({ body = '', failOn = null, typeEditable = false } = {}) => {
   const calls = []
   const page = {
     calls,
@@ -20,6 +20,9 @@ const makePage = ({ body = '', failOn = null } = {}) => {
         async count() { return 1 },
         async click(opts) { calls.push(['click', sel, opts]); if (failOn === 'click') throw new Error('click boom') },
         async fill(text, opts) { calls.push(['fill', sel, text, opts]) },
+        async evaluate() { return typeEditable },
+        async press(key) { calls.push(['press', sel, key]) },
+        async pressSequentially(text) { calls.push(['pressSequentially', sel, text]) },
       }
       loc.first = () => loc
       loc.filter = () => loc
@@ -119,6 +122,18 @@ describe('runStep primitives', () => {
     await runStep(page, { dom: {} }, c)
     expect(c.bodyText).toBe('正文内容')
   })
+  it('type step routes contenteditable through the keyboard path (#24)', async () => {
+    const page = makePage({ typeEditable: true })
+    await runStep(page, { type: { into: '#editor', text: '新内容' } }, ctx())
+    expect(page.calls.filter(c => c[0] === 'fill')).toHaveLength(0)
+    expect(page.calls.filter(c => c[0] === 'pressSequentially')[0][2]).toBe('新内容')
+  })
+  it('type step keeps fill for regular inputs (#24)', async () => {
+    const page = makePage()
+    await runStep(page, { type: { into: '#input', text: 'abc' } }, ctx())
+    expect(page.calls.filter(c => c[0] === 'fill')).toHaveLength(1)
+    expect(page.calls.filter(c => c[0] === 'pressSequentially')).toHaveLength(0)
+  })
 })
 
 describe('runScenario', () => {
@@ -144,6 +159,30 @@ describe('runScenario', () => {
     const { steps, asserts } = await runScenario(page, scenario, fakeCtx())
     expect(steps.map(s => s.action)).toEqual(['wait', 'wait'])
     expect(asserts.map(a => a.ok)).toEqual([true, true])
+  })
+  it('strict stops at the first failed step, skips the rest and reports stopped_at (#27)', async () => {
+    const page = makePage({ failOn: 'click' })
+    const scenario = {
+      name: 't', target: 'dsh-web', strict: true,
+      steps: [{ wait: 10 }, { click: { text: '不存在' } }, { wait: 20 }],
+      asserts: [{ textVisible: '无关' }],
+    }
+    const { steps, asserts, stopped_at } = await runScenario(page, scenario, fakeCtx())
+    expect(stopped_at).toBe(1)
+    expect(steps.map(s => s.action)).toEqual(['wait', 'click']) // 第三步未执行
+    expect(asserts).toEqual([]) // 后置断言不对坏页面级联
+    expect(page.calls.filter(c => c[0] === 'wait')).toHaveLength(1) // wait:20 没跑
+  })
+  it('strict keeps going on inline-assert failures; only step failures stop it (#27 边界)', async () => {
+    const page = makePage({ body: '别的' })
+    const scenario = {
+      name: 't', target: 'dsh-web', strict: true,
+      steps: [{ assert: { textVisible: '不在场' } }, { wait: 10 }],
+      asserts: [],
+    }
+    const { steps, stopped_at } = await runScenario(page, scenario, fakeCtx())
+    expect(stopped_at).toBeUndefined() // 断言失败不是步骤失败,不触发停跑
+    expect(steps.map(s => s.action)).toEqual(['wait'])
   })
   it('post asserts run after inline asserts; body text captured once at the end when no dom step', async () => {
     const page = makePage({ body: '最终正文' })

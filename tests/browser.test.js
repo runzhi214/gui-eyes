@@ -30,6 +30,24 @@ describe('launchBrowserContext (§5 fallback decision)', () => {
       .rejects.toThrow('e2')
   })
 
+  it('annotates the missing-browser error with self-heal guidance when both plans fail (#28)', async () => {
+    const launch = vi.fn()
+      .mockRejectedValueOnce(new Error("Executable doesn't exist at ~/.cache/ms-playwright/chromium-1234/chrome"))
+      .mockRejectedValue(new Error('Failed to launch the browser'))
+    const err = await launchBrowserContext({ profileDir: '/p', viewport: baseArgs.viewport, launch })
+      .catch(e => e)
+    expect(String(err.message)).toContain('自愈指引')
+    expect(String(err.message)).toContain('npx playwright@1.62.1 install chromium')
+    expect(String(err.message)).toContain('PLAYWRIGHT_DOWNLOAD_HOST')
+  })
+  it('leaves unrelated launch errors untouched — no guidance noise (#28 边界)', async () => {
+    const launch = vi.fn()
+      .mockRejectedValueOnce(new Error('e1'))
+      .mockRejectedValueOnce(new Error('e2'))
+    const err = await launchBrowserContext({ profileDir: '/p', viewport: baseArgs.viewport, launch })
+      .catch(e => e)
+    expect(err.message).toBe('e2')
+  })
   it('plans go bundled chromium first, chrome channel second', () => {
     expect(LAUNCH_PLANS).toEqual([
       { label: 'bundled-chromium', options: {} },

@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { clickLocator, locateAll, CLICK_TIMEOUT_MS, TYPE_TIMEOUT_MS } from '../core/primitives.js'
+import { clickLocator, locateAll, fillOrKeyboard, CLICK_TIMEOUT_MS, TYPE_TIMEOUT_MS } from '../core/primitives.js'
 import { runAsserts } from '../core/asserts.js'
 import { createCollectors } from '../core/observe.js'
 import { buildInventory, diffInventory, COLLECT_SCRIPT, DSH_EL_ATTR } from '../core/inventory.js'
@@ -9,6 +9,7 @@ import { loadScenario } from '../scenario/load.js'
 import { runScenario } from '../scenario/runner.js'
 import { maskToken, shapeConsoleErrors, shapeFailedRequests } from '../core/report.js'
 import { launchEphemeralBrowser } from '../core/browser.js'
+import { ENGINE_VERSION } from './version.js'
 import { VIEWPORT } from '../core/config.js'
 import { UsageError } from '../core/usage.js'
 import { AuthError } from '../core/auth.js'
@@ -27,7 +28,9 @@ const REPO_ROOT = resolve(join(fileURLToPath(import.meta.url), '../../..'))
 const today = () => new Date().toISOString().slice(0, 10)
 export const defaultShotsDir = () => join(REPO_ROOT, 'shots', today())
 
-const json = (payload) => ({ content: [{ type: 'text', text: JSON.stringify(payload) }] })
+// engine_version 尾字段(#29): 每个工具响应都带——dsh 会话的工具清单/描述是启动时快照,
+// 该字段让 agent 可见「会话以为的版本 vs 实际引擎版本」的漂移,自判是否该开新会话
+const json = (payload) => ({ content: [{ type: 'text', text: JSON.stringify({ engine_version: ENGINE_VERSION, ...payload }) }] })
 const clipMessage = (e) => String(e?.message ?? e).slice(0, MESSAGE_SLICE)
 
 // 正文读取失败吞为空串仅在 guiOpen 使用:degraded 字段把该失败显式化,不再隐没
@@ -185,7 +188,7 @@ export function createTools({ manager, shotsDir = defaultShotsDir, settleMs = SE
       let failureMessage
       if (error === null) {
         try {
-          await full.first().fill(text, { timeout: TYPE_TIMEOUT_MS })
+          await fillOrKeyboard(full.first(), text)
         } catch (e) {
           error = reasonFor(e)
           failureMessage = clipMessage(e)
@@ -237,10 +240,11 @@ export function createTools({ manager, shotsDir = defaultShotsDir, settleMs = SE
       }
     },
 
-    async guiDom({ head = MCP_DOM_HEAD_CHARS, tab, withRefs, delta, selector, eval: js } = {}) {
+    async guiDom({ head = MCP_DOM_HEAD_CHARS, tab, withRefs, delta, selector, eval: js, frame, includeShadow } = {}) {
       const session = manager.current()
       const page = pageFor(session, tab)
-      // JS 求值逃生舱(issue #18): 与 selector 读取互补——结构问题 3 秒定性,不再绕读图
+      // JS 求值逃生舱(issue #18): 与 selector 读取互补——结构问题 3 秒定性,不再绕读图。
+      // eval 只在主文档执行(evaluate 无 frameLocator 对应物),frame 内状态经页内 JS 自取
       if (js !== undefined) {
         try {
           const result = await page.evaluate(js)
@@ -250,10 +254,19 @@ export function createTools({ manager, shotsDir = defaultShotsDir, settleMs = SE
           return json({ ok: false, error: clipMessage(e) })
         }
       }
+      // 文本面作用域(#23): frame 与 includeShadow 是两种「读哪里的文本」指令,不共存
+      if (frame !== undefined && includeShadow === true) {
+        throw new UsageError('BAD_DOM_SCOPE', 'frame 与 includeShadow 不能同传:iframe 内文本用 frame 寻址;open shadow 文本用主文档 includeShadow')
+      }
+      if (includeShadow === true && selector !== undefined) {
+        throw new UsageError('BAD_DOM_SCOPE', 'includeShadow 只作用于默认文本面(主文档+shadow 合并);读单个元素用 selector,不含 shadow 语义')
+      }
+      // frame 根定位(#23): 与 click/type 同构,文本面与 selector 读取都经 frameLocator 进入 iframe
+      const root = frame !== undefined ? page.frameLocator(frame) : page
       // 选择器作用域读取(issue #16): outerHTML 让「容器下有没有节点/崩溃锚点」直接可见
       if (selector !== undefined) {
         try {
-          const el = page.locator(selector).first()
+          const el = root.locator(selector).first()
           const count = await el.count()
           if (count === 0) return json({ ok: true, selector, matched: 0 })
           const outer = await el.evaluate((node) => node.outerHTML)
@@ -263,8 +276,30 @@ export function createTools({ manager, shotsDir = defaultShotsDir, settleMs = SE
         }
       }
       let full
+      let shadowSegments = 0
       try {
-        full = await page.locator('body').innerText({ timeout: 5000 })
+        full = await root.locator('body').innerText({ timeout: 5000 })
+        // open shadow 文本合并(#23): 递归收集所有 open shadowRoot 的文本,与主文本面合并;
+        // 默认关——不改既有输出口径,agent 按需开启。
+        // 注: ShadowRoot 无 innerText(那是 HTMLElement 属性),用 textContent——shadow 段不筛 display:none(drive 实测钉死)
+        if (includeShadow === true) {
+          const segments = await page.evaluate(() => {
+            const segs = []
+            const walk = (node) => {
+              for (const el of node.querySelectorAll('*')) {
+                if (el.shadowRoot) {
+                  const text = el.shadowRoot.textContent
+                  if (text) segs.push(text)
+                  walk(el.shadowRoot)
+                }
+              }
+            }
+            walk(document)
+            return segs
+          })
+          shadowSegments = segments.length
+          full = [full, ...segments].join('\n')
+        }
       } catch (e) {
         return json({ ok: false, error: clipMessage(e) })
       }
@@ -273,6 +308,7 @@ export function createTools({ manager, shotsDir = defaultShotsDir, settleMs = SE
         text: full.slice(0, head),
         total_length: full.length,
         truncated: full.length > head,
+        ...(includeShadow === true ? { shadow_segments: shadowSegments } : {}),
       }
       // console 采集器暴露(issue #17): 数据一直在内存,交互后崩溃的第一信号随取随用
       if (session.collectors.consoleErrors.length > 0) {

@@ -71,7 +71,7 @@ gui-eyes run   <scenario.yaml> [--base-url <url>] [--out-dir <dir>] [--timeout-s
 - `--out-dir` 默认**当前工作区**下的 `./shots`（bwrap 沙箱 /tmp 不跨 bash 调用保留，产物必须落工作区）。
 - `--timeout-scale`：全局等待时间缩放因子（默认 1），供慢环境回归。
 - dsh-cookie 失效时行为：有 token 文件 → 自动重铸（`auth_mode: token-bootstrap`）；无 → `NO_TOKEN` 结构化输出 + exit 2。
-- plain 企业化最小集（2026-11-26 issue#11，用户拍板）：`httpCredentials` 经 `GUI_EYES_HTTP_CREDS=user:pass`（凭据不进 MCP 参数与会话日志）；启动参数经 `GUI_EYES_LAUNCH_JSON`（白名单 ignoreHTTPSErrors/proxy/userAgent/locale，自签 HTTPS 内网/代理/UA 定制）；profile 按鉴权拆分——dsh-web 用 `~/.cache/dsh-gui-eyes/profile`，plain 用 `profile-plain`。表单登录步骤与 storageState 注入不做（按需另立项）。
+- plain 企业化最小集（2026-11-26 issue#11，用户拍板；2026-11-27 issue#25 增补）：`httpCredentials` 经 `GUI_EYES_HTTP_CREDS=user:pass`（凭据不进 MCP 参数与会话日志）；启动参数经 `GUI_EYES_LAUNCH_JSON`（白名单 ignoreHTTPSErrors/proxy/userAgent/locale，自签 HTTPS 内网/代理/UA 定制）；profile 按鉴权拆分——dsh-web 用 `~/.cache/dsh-gui-eyes/profile`，plain 用 `profile-plain`。登录态（2026-11-27 issue#25 立项落地，推翻本行旧「不做」决策）：**表单登录复用**为既有场景原语的事实用法（goto+type+click 后 cookie 落持久目录），文档化之；**storageState 导入**经 `GUI_EYES_STORAGE_STATE=<path>`（cookies → addCookies，origins → addInitScript 按 origin 水合 localStorage；仅 plain 通道，dsh-web cookie 引擎自管不叠加；坏文件报 `BAD_STORAGE_STATE` 不静默）。
 
 ### 4.2 场景 YAML schema（M1 交付）
 
@@ -80,6 +80,7 @@ name: <场景名>            # 必填，进报告
 description: <一句话>      # 可选
 target: dsh-web            # 或内联: { baseUrl: "http://host:port/", auth: none }
 outDir: ./shots            # 可选，默认 CLI --out-dir
+strict: true               # 可选(issue#27): 遇第一个失败步骤即停,报告标 stopped_at;缺省继续跑(catch-continue 契约)
 steps:                     # 按序执行
   - goto: /                # 相对 target.baseUrl 的路径
   - wait: 6000             # ms
@@ -119,6 +120,7 @@ stdout 单个 JSON 对象，字段与语义：
 | `title` | 页面 title |
 | `steps` | 逐步摘要 `[{action, arg, ok}]`（替代旧 `clicked_workbench`，M1 起）；失败项附 `message` 失败原因（截 120 字符，issue#10） |
 | `asserts` | 逐条断言结果 `[{rule, ok, detail}]`（仅 run）；定位器执行异常记 `detail: 执行异常: ...`、ok:false，**不与计数 0 混同**（2026-11-26 issue#1 修复） |
+| `stopped_at` | 仅 `strict: true` 场景（issue#27，2026-11-27）：第一个失败步骤在 `scenario.steps` 中的下标——该步骤之后的所有步骤与后置断言均未执行，报告显式标停点 |
 | `console_errors` | console error，单条截 300 字符，最多 10 条 |
 | `failed_requests` | HTTP≥400；非 `/api/` 记完整 URL（掩码后），`/api/` 截 120 字符，最多 15 条；**网络层失败另记 `NET <errorText> <url>`（DNS 失败/连接拒绝/证书错误不产生 response 事件，issue#10）** |
 | `body_text_head` | body innerText 头部（默认 600 字符，`--head`/场景可调） |
@@ -134,6 +136,8 @@ MCP 通道响应增量字段（2026-11-26 issue 修复，CLI 报告字段不变�
 | `total_length` / `truncated` | gui_dom：正文全长与是否截断，空文与截断可区分 |
 | `body_text_head` | gui_run 响应补齐（场景 dom 步骤产物不再丢弃，与 CLI 通道对齐） |
 | `tabs` | gui_open 报告：context 内标签页总数（target=_blank 弹窗后 >1，观测/交互工具用 `tab` 参数寻址，issue#9） |
+| `engine_version` | 全部 7 工具响应尾字段（issue#29，2026-11-27）：与 MCP server info 同源同值（`src/server/version.js` 单源）——会话工具清单是启动快照，该字段把「会话以为的版本 vs 实际引擎版本」漂移变可见，agent 自判是否开新会话 |
+| `shadow_segments` | gui_dom `includeShadow: true` 时：合并进文本面的 open shadow 段数（issue#23，2026-11-27） |
 
 exit code：**0** 成功且断言全过；**1** 采集失败或断言未全过、参数错误（含 plain 缺 baseUrl）；**2** 未鉴权（NO_TOKEN / NO_COOKIE / TOKEN_STALE，输出含 `error` 与 `hint` 字段）。
 
@@ -152,9 +156,9 @@ exit code：**0** 成功且断言全过；**1** 采集失败或断言未全过�
 
 ### 4.5 MCP 工具面（M2 已交付；2026-11-26 issue 修复后语义；M2.2 观测口径与企业化）
 
-stdio MCP server，工具 7 个：`gui_open`（target/baseUrl/force，建立/复用会话并返回报告，含 tabs/NET 观测）、`gui_click`（text | role+name | selector，可选 frame/tab，响应附 matches 审计）、`gui_type`（into(CSS) 或 locate(text|role+name|selector) 二选一，可选 frame/tab）、`gui_shot`（name → 路径，outDir/fullPage/tab 可选，默认 `shots/<今日>/`）、`gui_dom`（head 可调**默认 2000**，附 total_length/truncated，可选 tab）、`gui_assert`（asserts 数组，可选 tab，规则支持 frame）、`gui_run`（scenario 路径，独立页面执行不扰动交互页，响应含 body_text_head 与失败步骤 message）。会话保活：persistent context 跨工具调用复用，401 自动重铸。复用语义：同 baseUrl+auth 原样返回不重导航；页面关闭/渲染崩溃自动重开；`force: true` 强制重开。
+stdio MCP server，工具 7 个：`gui_open`（target/baseUrl/force，建立/复用会话并返回报告，含 tabs/NET 观测）、`gui_click`（text | role+name | selector，可选 frame/tab，响应附 matches 审计）、`gui_type`（into(CSS) 或 locate(text|role+name|selector) 二选一，可选 frame/tab；**2026-11-27 issue#24：contenteditable 富文本自动走键盘路径**——evaluate 检测 `isContentEditable`，click → ControlOrMeta+A → Delete → pressSequentially（空串=纯清空），普通 input/textarea 照旧 fill，检测失败兜底回 fill）、`gui_shot`（name → 路径，outDir/fullPage/tab/wait/selector 可选，默认 `shots/<今日>/`）、`gui_dom`（head 可调**默认 2000**，附 total_length/truncated，可选 tab；**2026-11-27 issue#23 作用域参数**：`frame`（iframe 选择器，文本面与 selector 读取经 frameLocator，与 click/type 同构）、`includeShadow: true`（主文档+open shadow 文本合并，响应带 `shadow_segments`，默认关——既有输出口径不动；与 frame/selector 互斥报 `BAD_DOM_SCOPE`；eval 恒在主文档执行））、`gui_assert`（asserts 数组，可选 tab，规则支持 frame）、`gui_run`（scenario 路径，独立页面执行不扰动交互页，响应含 body_text_head 与失败步骤 message）。会话保活：persistent context 跨工具调用复用，401 自动重铸。复用语义：同 baseUrl+auth 原样返回不重导航；页面关闭/渲染崩溃自动重开；`force: true` 强制重开。
 
-描述层（issue#12，2026-11-26 重写）：每条描述含 When-to-use 意图词（验证/验收/回归）与典型验证链 `gui_open → gui_click/gui_type → gui_assert → gui_shot`；gui_dom/gui_assert 声明可见性边界（主文档 innerText 不含 iframe/shadow 文本）；gui_type 声明 ProseMirror `fill("")` 清空无效的已知坑。7 个工具描述均声明：**GUI 操作以真实用户身份生效，不受会话权限模式约束**。工具描述是会话启动时快照——引擎更新后需新会话才触达。
+描述层（issue#12，2026-11-26 重写；2026-11-27 issue#23/#24 增补）：每条描述含 When-to-use 意图词（验证/验收/回归）与典型验证链 `gui_open → gui_click/gui_type → gui_assert → gui_shot`；gui_dom 描述声明作用域矩阵（默认主文档 / frame 进 iframe / includeShadow 并 shadow / eval 恒主文档）；gui_type 描述改写为键盘路径能力声明（原 ProseMirror 已知坑条目随 #24 修复撤销）。7 个工具描述均声明：**GUI 操作以真实用户身份生效，不受会话权限模式约束**。工具描述是会话启动时快照——引擎更新后需新会话才触达。
 
 server instructions（2026-11-26 多模态分诊）：MCP server 以 SDK `options.instructions` 随连接下发服务器级指导（`src/server/instructions.js`），与 skill 双写同口径，核心内容 = 多模态分诊链——文本会话需判读截图时，`subagent` 显式传 provider+model 选多模态路由（先 `list_subagent_models` 枚举），让子代理截图+读图带回结论。注意 SDK 契约：`McpServer(serverInfo, options)`，instructions 属 options——放错位置静默不下发（回归测试已钉死）。
 
@@ -272,6 +276,10 @@ dsh-gui-eyes/
 设计与测试：docs/design-inventory-delta.md、src/core/inventory.js、tests/inventory.test.js。断言层与场景 YAML 原则不变：一次性交互用 ref，可回放资产用 selector。
 
 - 渠道：**npmjs 单渠道（2026-11-27 用户拍板，放弃 GHPR）**。`gui-eyes`（裸名，主包）+ `@runzhi214/gui-eyes-dsh`（dsh 接线 bundle，dependencies 自动拉取本体）。历史：首发曾走 GHPR（`@runzhi214/gui-eyes`，因当时本机 npmjs.org 不通）；2026-11-27 npmjs 可达+新 token 后转 npmjs，双渠道并存一日后按用户决策收敛为 npmjs 单渠道——GHPR workflow（release.yml）与 publishConfig 已移除，GitHub 仓仅作源码镜像+CI 测试。GHPR 上的存量版本（@runzhi214/gui-eyes 0.2.0–0.5.0）保留但不再更新。
+- **本机接线迁移 + mcp-register 删除（2026-11-27，用户点名解决机器绝对路径入共享仓）**：开发机 profile 从 link: `mcp-register/`（v0.1.0，patch 内写死 `/usr/local/bin/node` 与本仓绝对路径——机器特定、且不声明引擎依赖，正是远端装机翻车的模式）迁到 link: `dsh-bundle/`（v0.5.1 可移植 patch：`process.execPath` + `profileContext.dir`）；link: 安装不拉依赖，开发机补软链 `<本仓> → <profile>/node_modules/gui-eyes` 维持「引擎=本仓活代码」开发回环。激活排查实测两条事实入册：① 装机验证必须看「这次失败是不是上次失败的缓存」——`set_bundle` 在 selection 无变更时 `changed: false` 不重试激活，报的是旧态（先 disable→enable 制造变更再判）；② 诊断顺序应为「手动 spawn 探针（NDJSON 握手）→ 全新 CLI boot 看 state」——CLI boot 里行 active 而活进程报失败，即活进程态滞后而非配置问题。`mcp-register/` 已删除（仓内机器绝对路径的唯一载体已清零），README 方式二改指 `dsh-bundle/` 并注明 link: 安装需补软链。
+- **README 已知缺陷逐条分析（2026-11-27，用户点名）**：八条缺陷各定位到代码行与根因，七条立案 GitCode #23–#29（待修）：#23 gui_dom 缺 frame/includeShadow（includeShadow 必须走可选参数不动默认口径）；#24 contenteditable 清空走键盘路径；#25 表单登录用法文档化 + `GUI_EYES_STORAGE_STATE` 导入（persistent context 用 addCookies 注入）；#26 并发锁冲突结构化报错 + `profile-<pid>` 自动分裂；#27 场景级 `strict: true` 可选停跑（默认 catch-continue 契约不变）；#28 双 plan 启动皆败时附自愈指引；#29 MCP 响应附 `engine_version` 尾字段（dsh 会话快照是架构事实，引擎只能把漂移变可见）。**判定保留不修**：text 定位子串/非精确是设计契约（断言同口径），仅可选「多匹配时响应附候选文本」微增强未立案；playwright 1.62.1 版本钉死是持续维护边界，不属缺陷修复。
+- **中优先级批次修复（2026-11-27，用户批准方案四点确认：#26 证伪关闭、#25 契约翻转、includeShadow 默认关+互斥、#24 顺带修场景通道）**：#24 `fillOrKeyboard`（`src/core/primitives.js`，gui_type 与场景 type 步骤同享；探针实证 fill("") 清不掉 contenteditable、键盘路径有效、`isContentEditable` 检测可靠）；#23 gui_dom `frame`/`includeShadow`（§4.5 已增补；eval 恒主文档；frame+includeShadow、includeShadow+selector 互斥报 `BAD_DOM_SCOPE`）；#25 `GUI_EYES_STORAGE_STATE`（§4.1 契约翻转已记；注入先于首跳导航，坏文件不起无鉴权会话）；**#26 证伪关闭——动手前双探针推翻 issue 前提**：同 profile 目录双 persistent context 实测可并存、各自导航读写互不干扰、关一存一（探针归档 `evidence/concurrency-2026-11-27/`）；「chromium singleton 锁」出自 M2.1 issue#5 修复时的推测性限制（本文件 :234 原文「已知限制保持不变」），从未真实复现过——不针对证伪的失败模式写防御代码，README 缺陷条删除改记实证事实，GitCode #26 附探针结论关闭。方法论入册：**issue 与 README 的陈述同样要过实证，缺陷描述不是事实本身**。测试 171→184（+13：primitives 4、runner +2、server-tools +4、session +3），16 文件全绿。
+- **低优先级批次修复 + 版本规则确立（2026-11-27，用户批准「修完 bump 0.6.1」；同日新立长期规则：NPM 发布与 version bump 均须经用户同意，本批为规则生效后首个经批准的 bump）**：#27 场景级 `strict: true` 可选停跑（schema `strict` 布尔字段；runner 遇失败步骤即停——后续步骤与后置断言均不执行，报告标 `stopped_at` 下标；内联断言失败不触发停跑；缺省 catch-continue 契约零变化，§4.2/§4.3 已增补）；#28 启动自愈指引（`src/core/browser.js` `withSelfHeal`：双 plan 皆败且报错匹配浏览器缺失特征时追加 `npx playwright@1.62.1 install chromium` + `PLAYWRIGHT_DOWNLOAD_HOST` 国内镜像 + Chrome channel 兜底说明；无关错误零污染，版本钉死事实如实陈述）；#29 `engine_version` 尾字段（新单源 `src/server/version.js`，McpServer info 与全部 7 工具响应同源同值——json() 助手统一注入，一处覆盖全响应；bump 从三处改两处：version.js + package.json）。测试 184→189（+5：runner strict×2、browser 自愈×2、engine_version 七工具覆盖×1）。版本 0.6.0（中优先级批）+0.6.1（本批）连续两个 MINOR/PATCH 由用户逐批拍板。
 - 落地项：package.json 市场化（name/version 0.2.0/keywords/repository/bin 增 `gui-eyes-mcp` 走 PATH/files 打包白名单/publishConfig GHPR）；files 白名单含 `skills/`（消费者可从 node_modules 取 skill）；excluded：tests/evidence/shots/mcp-register（本机绝对路径）/`.npmrc`（华为云镜像属本机，npm 默认不发布）。
 - 消费方事实：GHPR 的 npm registry 对**所有安装要求认证**（公开包也要）——消费机需 PAT（read:packages）配 `.npmrc`；landingzone 侧以此与本地 checkout 解耦（依赖版本号）。
 - 残余：README 接入段补 npm 安装路径；workflow 随镜像仓落地后打 tag `v0.2.0` 触发首发。

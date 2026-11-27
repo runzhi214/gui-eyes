@@ -6,6 +6,7 @@ import { UsageError } from '../core/usage.js'
 import { ScenarioSchemaError } from '../scenario/schema.js'
 import { createTools } from './tools.js'
 import { SERVER_INSTRUCTIONS } from './instructions.js'
+import { ENGINE_VERSION } from './version.js'
 
 // 安全事实(issue #8):GUI 操作以真实用户身份生效,不受会话权限模式约束
 const SAFETY_NOTE = '注意:GUI 操作以真实用户身份生效,不受会话权限模式(只读/读写)约束'
@@ -32,7 +33,7 @@ const tabParam = z.number().int().min(0).optional()
   .describe('目标页索引(gui_open 报告的 tabs 总数;点击 target=_blank 弹出新页后用 tab 切换,如 tab:1)')
 
 export function createMcpServer({ manager = createSessionManager(), tools = createTools({ manager }) } = {}) {
-  const server = new McpServer({ name: 'gui-eyes', version: '0.5.0' }, { instructions: SERVER_INSTRUCTIONS })
+  const server = new McpServer({ name: 'gui-eyes', version: ENGINE_VERSION }, { instructions: SERVER_INSTRUCTIONS })
   const guarded = (handler) => async (args) => {
     try {
       return await handler(args)
@@ -61,7 +62,7 @@ export function createMcpServer({ manager = createSessionManager(), tools = crea
 
   server.registerTool('gui_type', {
     title: '输入文本',
-    description: `验证表单/搜索交互时向输入框填入文本,内置 800ms 稳定等待。定位二选一: into(CSS 选择器)或 locate(text|role+name|selector|ref,与点击同构,支持 frame/tab)。已知坑: fill 实现对富文本编辑器(ProseMirror 类)清空无效——不要用空串清空,填入替换内容。${SAFETY_NOTE}。${UNTRUSTED_NOTE}`,
+    description: `验证表单/搜索交互时向输入框填入文本,内置 800ms 稳定等待。定位二选一: into(CSS 选择器)或 locate(text|role+name|selector|ref,与点击同构,支持 frame/tab)。contenteditable 富文本(ProseMirror 类)自动走键盘路径(selectAll+Delete+逐字输入),空串清空有效;普通 input/textarea 走 fill。${SAFETY_NOTE}。${UNTRUSTED_NOTE}`,
     inputSchema: z.object({
       into: z.string().optional().describe('CSS 选择器(与 locate 二选一)'),
       locate: locateShape.optional().describe('text|role+name|selector 定位(与 into 二选一)'),
@@ -89,7 +90,7 @@ export function createMcpServer({ manager = createSessionManager(), tools = crea
 
   server.registerTool('gui_dom', {
     title: '读页面正文',
-    description: `验证/检查页面内容时读取,一 tool 三用:(a)默认读 body innerText 头部(2000 字符可调,附 total_length/truncated 与最近 console errors);(b)selector 指定 CSS 时返回首个命中元素的 outerHTML(结构可观测:容器下有没有节点/崩溃锚点);(c)eval 传入 JS 表达式时在页面执行并返回 JSON 结果(任意运行时状态,排查挂载类问题首选)。withRefs:true 附交互元素编号清单(≤30,click/type 传 ref 直达;清单是快照,重渲染后 ref 失效需重新采集);delta:true 只回相对上次的变化。能力边界: 默认形态仅主文档 innerText——不含 iframe(用 frame 参数)与 Shadow DOM 文本(textVisible 断言可穿透);新标签页用 tab。${SAFETY_NOTE}。${UNTRUSTED_NOTE}`,
+    description: `验证/检查页面内容时读取,一 tool 三用:(a)默认读 body innerText 头部(2000 字符可调,附 total_length/truncated 与最近 console errors);(b)selector 指定 CSS 时返回首个命中元素的 outerHTML(结构可观测:容器下有没有节点/崩溃锚点);(c)eval 传入 JS 表达式时在页面执行并返回 JSON 结果(任意运行时状态,排查挂载类问题首选)。withRefs:true 附交互元素编号清单(≤30,click/type 传 ref 直达;清单是快照,重渲染后 ref 失效需重新采集);delta:true 只回相对上次的变化。作用域:iframe 内文本传 frame(与 selector 读取同构);open Shadow DOM 文本传 includeShadow: true(主文档+shadow 合并,响应带 shadow_segments;默认关);eval 只在主文档执行;新标签页用 tab。${SAFETY_NOTE}。${UNTRUSTED_NOTE}`,
     inputSchema: {
       head: z.number().int().positive().optional().describe('截取字符数,默认 2000'),
       tab: tabParam,
@@ -97,6 +98,8 @@ export function createMcpServer({ manager = createSessionManager(), tools = crea
       delta: z.boolean().optional().describe('只回相对上次快照的变化(无基线则返回全量并记 delta_note)'),
       selector: z.string().optional().describe('CSS 选择器:返回首个命中元素的 outerHTML(结构可观测)'),
       eval: z.string().optional().describe('JS 表达式:在页面执行并返回 JSON 结果(只读排查,勿做写操作)'),
+      frame: z.string().optional().describe('iframe 选择器:文本面/selector 读取经 frameLocator 进入 iframe(与 includeShadow 互斥)'),
+      includeShadow: z.boolean().optional().describe('true=主文档与 open shadow 文本合并(响应带 shadow_segments;默认关,与 frame/selector 互斥)'),
     },
   }, guarded(tools.guiDom))
 

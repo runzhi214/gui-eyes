@@ -46,7 +46,7 @@ asserts:
   - textVisible: 提交成功
 ```
 
-完整 schema（6 种断言规则、iframe `frame:` 定位、内联断言等）见 REQUIREMENTS.md §4.2。
+完整 schema（6 种断言规则、iframe `frame:` 定位、内联断言、可选 `strict: true` 遇第一个失败步骤即停——报告标 `stopped_at`，缺省继续跑）见 REQUIREMENTS.md §4.2。
 
 ### dsh-web 鉴权 bootstrap（仅 cookie 失效时需要）
 
@@ -64,6 +64,7 @@ echo 'http://127.0.0.1:3080/?token=...' > ~/.dsh-gui-token
 
 - 必须显式给 baseUrl（参数或 `GUI_EYES_BASE_URL`）。
 - basic auth：`GUI_EYES_HTTP_CREDS=user:pass`。
+- 登录态两条路：**表单登录复用**——场景里 goto 登录页 → type 账号/密码 → click 提交，cookie 落 `profile-plain` 持久目录，后续运行免登录；**storageState 导入**——`GUI_EYES_STORAGE_STATE=<path>` 指向 `{"cookies":[...],"origins":[...]}` JSON（别处导出的登录态），启动时 cookies 经 addCookies、localStorage 经 initScript 按注 origin 水合，免去表单登录。
 - 启动参数（自签 HTTPS、代理、UA、locale）：`GUI_EYES_LAUNCH_JSON='{"ignoreHTTPSErrors":true,"proxy":{"server":"http://p:8080"}}'`（白名单透传）。
 - 独立 profile：`~/.cache/dsh-gui-eyes/profile-plain`，与 dsh-web 鉴权 profile 隔离。
 
@@ -83,7 +84,7 @@ dsh plugin --profile <p> add -E @runzhi214/gui-eyes-dsh   # 接线 bundle(自动
 
 重启 dsh 后所有新会话获得 `mcp__gui-eyes__*` 七工具；skill 从包内 `skills/` 复制或软链到 `~/.agents/skills/`。
 
-**方式二：本仓直用**（开发机）：**MCP 工具面**——安装 `mcp-register/` 配置-only bundle（`plugin_manager` `action: install_bundle`，target 指向本仓 `mcp-register/` 绝对路径），重启 dsh 后每个新会话自动获得 `mcp__gui-eyes__*` 七个工具（gui_open / gui_click / gui_type / gui_shot / gui_dom / gui_assert / gui_run），无需记忆、无需文档。
+**方式二：本仓直用**（开发机）：**MCP 工具面**——安装 `dsh-bundle/` 配置-only bundle（`plugin_manager` `action: install_bundle`，target 指向本仓 `dsh-bundle/` 绝对路径）。注意 link: 安装**不拉 bundle 依赖**，开发机还需一条软链把引擎本体接进 profile：`ln -s <本仓> <dsh-home>/profiles/<profile>/node_modules/gui-eyes`。之后每个新会话自动获得 `mcp__gui-eyes__*` 七个工具（gui_open / gui_click / gui_type / gui_shot / gui_dom / gui_assert / gui_run），无需记忆、无需文档。
 
 - 会话跨调用保活；同 baseUrl+auth 复用不重导航，页面崩溃/关闭自动重开，`force: true` 强制重开。
 - profile 里 `@deepseek-ai/dsh-mcp-client` 版本必须与运行中 dsh 一致，否则插件行启动即禁用；对齐用 `dsh plugin --profile <p> add -E @deepseek-ai/dsh-mcp-client@<runtime-version>`。
@@ -94,14 +95,13 @@ dsh plugin --profile <p> add -E @runzhi214/gui-eyes-dsh   # 接线 bundle(自动
 
 ## 已知缺陷与边界
 
-- **可见性口径**：`gui_dom` 读主文档 innerText——不含 iframe 与 Shadow DOM 文本（iframe 用 `frame:` 定位断言/点击，shadow 用 `textVisible` 断言可命中）；新标签页（target=_blank）用 `gui_open` 报告的 `tabs` + 各工具 `tab:` 参数寻址；截图默认仅视口，整页传 `fullPage: true`。
-- **`gui_type` 清空富文本无效**：fill 实现对 ProseMirror 类编辑器 `fill("")` 清不掉——填入替换内容，不要用空串清空。
+- **可见性口径**：`gui_dom` 默认文本面 = 主文档 innerText；iframe 内文本传 `frame:`，open shadow 文本传 `includeShadow: true`（主文档+shadow 合并，响应带 `shadow_segments`）；`textVisible` 断言本身穿透 open shadow。新标签页（target=_blank）用 `gui_open` 报告的 `tabs` + 各工具 `tab:` 参数寻址；截图默认仅视口，整页传 `fullPage: true`。
 - **text 定位默认非精确**：子串匹配、多匹配点 DOM 序第一个——响应的 `matches` 字段暴露命中数，歧义时换精确选择器或 `exact: true`。
-- **无登录能力**：plain 通道仅支持 basic auth 与环境变量启动参数；表单登录步骤、storageState 注入未实现。
-- **并发限制**：多个 MCP 会话并发会各起一个 server、共用同一 profile 目录，撞 chromium singleton 锁——同一时间只跑一个会话。
 - **场景步骤失败不中断**（catch-continue 契约）：失败步骤附 `message`，后续步骤/断言可能对着坏页面级联失败，靠消息识别页面状态不可信。
-- **版本钉死**：playwright 1.62.1 依赖本机 `~/.cache/ms-playwright` 的 chromium-1234 缓存，换机需自备同版本缓存（或走 `channel:'chrome'` 兜底）。
-- **MCP 工具面是会话启动快照**：引擎更新（含工具描述改动）要 dsh 重启后的新会话才触达；运行中会话与派生子代理看不到新工具。
+- **版本钉死**：playwright 1.62.1 依赖本机 `~/.cache/ms-playwright` 的 chromium-1234 缓存，换机需自备同版本缓存（或走 `channel:'chrome'` 兜底）；双兜底皆缺时启动报错自带自愈指引（`npx playwright@1.62.1 install chromium`、国内镜像 `PLAYWRIGHT_DOWNLOAD_HOST`）。
+- **MCP 工具面是会话启动快照**：引擎更新（含工具描述改动）要 dsh 重启后的新会话才触达；运行中会话与派生子代理看不到新工具。每个响应带 `engine_version` 尾字段——与已装引擎版本对照即可自判是否需要开新会话。
+
+（历史缺陷条更新记录见 CHANGELOG：富文本清空 #24、并发限制证伪 #26、登录能力 #25 均已于 0.6.0 处理。）
 
 ## License
 

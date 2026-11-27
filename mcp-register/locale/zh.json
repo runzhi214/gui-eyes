@@ -1,6 +1,0 @@
-{
-  "meta": {
-    "title": "gui-eyes MCP 连接",
-    "description": "以 stdio 方式接入 gui-eyes MCP server，让每个会话的 agent 直接获得 gui_open / gui_click / gui_type / gui_shot / gui_dom / gui_assert / gui_run 七个网页 GUI 观测工具。浏览器会话跨调用保活，DSH cookie 失效自动重铸；截图落在引擎仓 shots/ 目录并返回绝对路径。"
-  }
-}

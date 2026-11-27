@@ -20,6 +20,18 @@ export function locateAll(page, spec) {
 
 export const clickLocator = (page, spec) => locateAll(page, spec).first()
 
+// 富文本输入(#24): contenteditable 有内部 model(ProseMirror 类),fill 事件驱动不了清空;
+// 键盘路径 selectAll+Delete 在 model 层必然生效。检测失败兜底回 fill,行为不劣化。
+export async function fillOrKeyboard(locator, text, { timeout = TYPE_TIMEOUT_MS } = {}) {
+  let editable = false
+  try { editable = await locator.evaluate((el) => el.isContentEditable === true) } catch { editable = false }
+  if (!editable) return locator.fill(text, { timeout })
+  await locator.click({ timeout })
+  await locator.press('ControlOrMeta+A', { timeout })
+  await locator.press('Delete', { timeout })
+  if (text !== '') await locator.pressSequentially(text, { delay: 0 })
+}
+
 async function bodyInnerText(page) {
   return page.locator('body').innerText({ timeout: 5000 }).catch(() => '')
 }
@@ -43,7 +55,7 @@ export async function runStep(page, entry, ctx) {
       return
     }
     case 'type':
-      await rooted(page, arg.frame).locator(arg.into).first().fill(arg.text, { timeout: TYPE_TIMEOUT_MS * ctx.timeoutScale })
+      await fillOrKeyboard(rooted(page, arg.frame).locator(arg.into).first(), arg.text, { timeout: TYPE_TIMEOUT_MS * ctx.timeoutScale })
       return
     case 'shot': {
       const path = join(ctx.outDir, `${arg}-${Date.now()}.png`)

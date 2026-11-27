@@ -20,6 +20,8 @@ const makePage = ({
   matches = 1,
   matchText = '按钮A',
   bodyReadFails = false,
+  editable = false,
+  fillBroken = false,
 } = {}) => {
   const page = {
     url: () => url,
@@ -44,7 +46,10 @@ const makePage = ({
         click: async () => {
           if (!clickOk) throw clickError ?? new Error('nope')
         },
-        fill: async () => { if (!clickOk) throw clickError ?? new Error('nope') },
+        fill: async () => { if (fillBroken || !clickOk) throw clickError ?? new Error('nope') },
+        evaluate: async () => editable,
+        press: async () => {},
+        pressSequentially: async () => {},
         first: () => loc,
         nth: () => loc,
         isChecked: async () => false,
@@ -136,13 +141,48 @@ describe('server tools', () => {
     expect(open).toHaveBeenCalledTimes(2)
   })
 
+  it('every tool response carries engine_version (#29)', async () => {
+    const page = makePage()
+    const openImpl = async () => ({
+      page,
+      context: {
+        close: vi.fn(async () => {}), newPage: async () => makePage(), pages: () => [page],
+        storageState: vi.fn(async () => null),
+      },
+      collectors: { consoleErrors: [], failedRequests: [], crashCount: () => 0 },
+      authMode: 'cookie',
+      baseUrl: 'http://127.0.0.1:3080/',
+    })
+    const { tools, manager } = makeTools(page, openImpl)
+    const rs = [
+      parse(await tools.guiOpen({})),
+      parse(await tools.guiClick({ text: '正文内容' })),
+      parse(await tools.guiType({ into: '#q', text: 'x' })),
+      parse(await tools.guiDom({})),
+      parse(await tools.guiAssert({ asserts: [{ textVisible: '正文内容' }] })),
+      parse(await tools.guiShot({ name: 'v' })),
+    ]
+    // guiRun 用注入的假 launch/runner(不起真浏览器),同一 manager 会话
+    const runTools = createTools({
+      manager, shotsDir: () => dir,
+      load: vi.fn(async () => ({ name: 'demo', target: 'dsh-web', steps: [], asserts: [], outDir: undefined, head: undefined, description: undefined })),
+      run: vi.fn(async () => ({ steps: [], asserts: [] })),
+      runLaunch: vi.fn(async () => ({
+        newContext: vi.fn(async () => ({ newPage: async () => makePage(), close: vi.fn(async () => {}) })),
+        close: vi.fn(async () => {}),
+      })),
+    })
+    rs.push(parse(await runTools.guiRun({ scenario: 'demo.yaml' })))
+    for (const r of rs) expect(r.engine_version).toBe('0.6.1') // 七工具全带,与 server info 同源
+  })
+
   it('guiOpen wraps NO_TOKEN into a structured error result', async () => {
     const { tools } = makeTools(makePage(), async () => { throw new AuthError('NO_TOKEN', NO_TOKEN_HINT) })
     const err = await tools.guiOpen({}).catch(e => e)
     expect(err).toBeInstanceOf(AuthError)
     const shaped = tools.wrapError(err)
     expect(shaped.isError).toBe(true)
-    expect(parse(shaped)).toEqual({ error: 'NO_TOKEN', hint: NO_TOKEN_HINT })
+    expect(parse(shaped)).toEqual({ engine_version: '0.6.1', error: 'NO_TOKEN', hint: NO_TOKEN_HINT })
   })
 
   it('other tools before open shape NO_SESSION, not a crash', async () => {
@@ -157,7 +197,7 @@ describe('server tools', () => {
     const { tools, manager } = makeTools(makePage())
     await manager.open({})
     const r = parse(await tools.guiClick({ text: '正文内容' }))
-    expect(r).toEqual({ ok: true, final_url: 'http://127.0.0.1:3080/wb?token=***', matches: 1, matched_text: '按钮A' })
+    expect(r).toEqual({ engine_version: '0.6.1', ok: true, final_url: 'http://127.0.0.1:3080/wb?token=***', matches: 1, matched_text: '按钮A' })
   })
 
   it('guiClick classifies failures: error carries message (issue #1)', async () => {
@@ -188,7 +228,7 @@ describe('server tools', () => {
     const { tools, manager } = makeTools(makePage())
     await manager.open({})
     const r = parse(await tools.guiType({ into: '#q', text: 'hi' }))
-    expect(r).toEqual({ ok: true, final_url: 'http://127.0.0.1:3080/wb?token=***', matches: 1, matched_text: '按钮A' })
+    expect(r).toEqual({ engine_version: '0.6.1', ok: true, final_url: 'http://127.0.0.1:3080/wb?token=***', matches: 1, matched_text: '按钮A' })
     const viaLocate = parse(await tools.guiType({ locate: { role: 'textbox', name: '搜索' }, text: 'x' }))
     expect(viaLocate.ok).toBe(true)
     const both = await tools.guiType({ into: '#q', locate: { text: 'a' }, text: 'x' }).catch(e => e)
@@ -208,12 +248,60 @@ describe('server tools', () => {
     expect(r.message).toBe('not an input')
   })
 
+  it('guiType routes contenteditable through the keyboard path — broken fill still succeeds (#24)', async () => {
+    const { tools, manager } = makeTools(makePage({ editable: true, fillBroken: true }))
+    await manager.open({})
+    const r = parse(await tools.guiType({ into: '#ed', text: '新内容' }))
+    expect(r.ok).toBe(true) // 没碰 fill(它被做成坏的)——走的键盘路径
+  })
+
+  it('guiDom reads inside iframes via frame, text and selector alike (#23)', async () => {
+    const page = makePage()
+    page.frameLocator = () => ({
+      locator(sel) {
+        if (sel === 'body') return { innerText: async () => 'iframe 正文内容' }
+        const loc2 = { count: async () => 1, first: () => loc2, evaluate: async () => '<div>iframe 内元素</div>' }
+        return loc2
+      },
+    })
+    const { tools, manager } = makeTools(page)
+    await manager.open({})
+    const r = parse(await tools.guiDom({ frame: '#f' }))
+    expect(r.text).toBe('iframe 正文内容')
+    const sel = parse(await tools.guiDom({ frame: '#f', selector: '.x' }))
+    expect(sel.outerHTML).toBe('<div>iframe 内元素</div>')
+  })
+
+  it('guiDom merges open shadow text only when includeShadow is set (#23)', async () => {
+    const page = makePage({ body: '主文档' })
+    page.evaluate = async () => ['shadow 内文本']
+    const { tools, manager } = makeTools(page)
+    await manager.open({})
+    const merged = parse(await tools.guiDom({ includeShadow: true }))
+    expect(merged.text).toBe('主文档\nshadow 内文本')
+    expect(merged.shadow_segments).toBe(1)
+    const plain = parse(await tools.guiDom({}))
+    expect(plain.text).toBe('主文档')
+    expect(plain.shadow_segments).toBeUndefined()
+  })
+
+  it('guiDom rejects frame+includeShadow and includeShadow+selector as BAD_DOM_SCOPE (#23)', async () => {
+    const { tools, manager } = makeTools(makePage())
+    await manager.open({})
+    const e1 = await tools.guiDom({ frame: '#f', includeShadow: true }).catch(e => e)
+    expect(e1).toBeInstanceOf(UsageError)
+    expect(parse(tools.wrapError(e1)).error).toBe('BAD_DOM_SCOPE')
+    const e2 = await tools.guiDom({ includeShadow: true, selector: '.x' }).catch(e => e)
+    expect(e2).toBeInstanceOf(UsageError)
+    expect(parse(tools.wrapError(e2)).error).toBe('BAD_DOM_SCOPE')
+  })
+
   it('guiDom slices head, reports total_length and truncated (issue #6); MCP default head is 2000 (issue #12)', async () => {
     const long = 'x'.repeat(3000)
     const { tools, manager } = makeTools(makePage({ body: long }))
     await manager.open({})
     const dom = parse(await tools.guiDom({ head: 10 }))
-    expect(dom).toEqual({ ok: true, text: 'x'.repeat(10), total_length: 3000, truncated: true, console_errors: ['e1'] })
+    expect(dom).toEqual({ engine_version: '0.6.1', ok: true, text: 'x'.repeat(10), total_length: 3000, truncated: true, console_errors: ['e1'] })
     const full = parse(await tools.guiDom({}))
     expect(full.truncated).toBe(true)
     expect(full.text).toBe('x'.repeat(2000))
@@ -248,7 +336,7 @@ describe('server tools', () => {
     const { tools, manager } = makeTools(page)
     await manager.open({})
     const r = parse(await tools.guiShot({ name: 'boom' }))
-    expect(r).toEqual({ ok: false, error: 'page closed' })
+    expect(r).toEqual({ engine_version: '0.6.1', ok: false, error: 'page closed' })
   })
 
   it('guiAssert runs every rule and folds ok', async () => {
@@ -385,7 +473,7 @@ describe('server tools', () => {
   it('wrapError shapes schema errors as INVALID_SCENARIO and passes others through', async () => {
     const { tools } = makeTools(makePage())
     const schemaErr = tools.wrapError(new ScenarioSchemaError([{ path: 'name', message: 'x' }]))
-    expect(parse(schemaErr)).toEqual({ error: 'INVALID_SCENARIO', errors: [{ path: 'name', message: 'x' }] })
+    expect(parse(schemaErr)).toEqual({ engine_version: '0.6.1', error: 'INVALID_SCENARIO', errors: [{ path: 'name', message: 'x' }] })
     expect(tools.wrapError(new Error('boom'))).toBeNull()
   })
 
@@ -488,7 +576,7 @@ describe('server tools', () => {
     const { tools, manager } = makeTools(page)
     await manager.open({})
     const r = parse(await tools.guiDom({ eval: '1+1' }))
-    expect(r).toEqual({ ok: true, eval_result: '2' })
+    expect(r).toEqual({ engine_version: '0.6.1', ok: true, eval_result: '2' })
     const bad = parse(await tools.guiDom({ eval: 'throw x' }))
     expect(bad.ok).toBe(false)
     expect(bad.error).toContain('boom')

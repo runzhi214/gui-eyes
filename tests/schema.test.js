@@ -7,7 +7,7 @@ const valid = (obj) => () => validateScenario(obj)
 describe('scenario schema: top level', () => {
   it('accepts a minimal scenario and applies defaults', () => {
     const s = validateScenario({ name: 'demo', steps: [] })
-    expect(s).toEqual({ name: 'demo', description: undefined, target: 'dsh-web', outDir: undefined, head: undefined, steps: [], asserts: [] })
+    expect(s).toEqual({ name: 'demo', description: undefined, target: 'dsh-web', outDir: undefined, head: undefined, strict: false, steps: [], asserts: [] })
   })
   it('rejects unknown top-level fields', () => {
     expect(valid({ ...base, oops: 1 })).toThrow(ScenarioSchemaError)
