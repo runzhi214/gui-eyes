@@ -1,6 +1,6 @@
 # gui-eyes MCP 接线 —— 完全可移植: 路径经 profileContext.dir 装载期求值,
 # command 用 process.execPath(dsh 自身 node 二进制,免疫 GUI 启动时 PATH 缺失)。
-# 要求: profile 内已直接安装 gui-eyes(npmjs)——dsh plugin --profile <p> add -E gui-eyes
+# 前提已由包依赖保证: 本 bundle 的 dependencies 会把 gui-eyes 拉进 profile node_modules。
 - insert:
     - id: gui-eyes-mcp
       name: '@deepseek-ai/dsh-mcp-client'
