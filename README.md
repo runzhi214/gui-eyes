@@ -1,5 +1,12 @@
 # gui-eyes
 
+[![license](https://img.shields.io/github/license/runzhi214/gui-eyes)](./LICENSE)
+[![npm](https://img.shields.io/npm/v/gui-eyes?label=npm%20(gui-eyes))](https://www.npmjs.com/package/gui-eyes)
+[![npm](https://img.shields.io/npm/v/%40runzhi214%2Fgui-eyes-dsh?label=npm%20(%40runzhi214%2Fgui-eyes-dsh))](https://www.npmjs.com/package/@runzhi214/gui-eyes-dsh)
+[![downloads](https://img.shields.io/npm/dm/gui-eyes?label=downloads%2Fmonth%20(gui-eyes))](https://www.npmjs.com/package/gui-eyes)
+[![downloads](https://img.shields.io/npm/dm/%40runzhi214%2Fgui-eyes-dsh?label=downloads%2Fmonth%20(%40runzhi214%2Fgui-eyes-dsh))](https://www.npmjs.com/package/@runzhi214/gui-eyes-dsh)
+[![dsh](https://img.shields.io/badge/dsh-0.2.2--rc.5-blue)](https://www.npmjs.com/package/@deepseek-ai/dsh)
+
 给 AI agent 装上「看任意 web GUI」的眼睛：一个带持久鉴权的浏览器采集与验证引擎，CLI 与 MCP 双通道。
 
 - **打开**页面——30 天持久 cookie 会话（DSH web 内置鉴权自动重铸），也能采集任意公开/内网站点
