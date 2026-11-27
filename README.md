@@ -72,14 +72,16 @@ echo 'http://127.0.0.1:3080/?token=...' > ~/.dsh-gui-token
 **方式一：npm 安装（GitHub Packages）**：
 
 ```bash
-# 消费机 .npmrc(GHPR 的 npm registry 对所有安装要求认证)
-//npm.pkg.github.com/:_authToken=<你的 PAT(read:packages)>
-@runzhi214:registry=https://npm.pkg.github.com
-
-npm i -g @runzhi214/gui-eyes   # bin: gui-eyes(CLI) + gui-eyes-mcp(MCP stdio server,走 PATH)
+npm i -g gui-eyes   # bin: gui-eyes(CLI) + gui-eyes-mcp(MCP stdio server,走 PATH)
 ```
 
-装好后 MCP bundle 的 `command` 直接写 `gui-eyes-mcp`（不再依赖本仓绝对路径）；skill 从 `node_modules/@runzhi214/gui-eyes/skills/` 复制或软链到 `~/.agents/skills/`。
+**dsh profile 接入（推荐）**：两条命令，bundle 会把引擎本体自动拉进 profile：
+
+```bash
+dsh plugin --profile <p> add -E @runzhi214/gui-eyes-dsh   # 接线 bundle(自动依赖 gui-eyes 本体)
+```
+
+重启 dsh 后所有新会话获得 `mcp__gui-eyes__*` 七工具；skill 从包内 `skills/` 复制或软链到 `~/.agents/skills/`。
 
 **方式二：本仓直用**（开发机）：**MCP 工具面**——安装 `mcp-register/` 配置-only bundle（`plugin_manager` `action: install_bundle`，target 指向本仓 `mcp-register/` 绝对路径），重启 dsh 后每个新会话自动获得 `mcp__gui-eyes__*` 七个工具（gui_open / gui_click / gui_type / gui_shot / gui_dom / gui_assert / gui_run），无需记忆、无需文档。
 

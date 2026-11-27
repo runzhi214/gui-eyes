@@ -36,10 +36,6 @@
     "LICENSE",
     "REQUIREMENTS.md"
   ],
-  "publishConfig": {
-    "registry": "https://registry.npmjs.org",
-    "access": "public"
-  },
   "scripts": {
     "test": "vitest run"
   },

@@ -271,7 +271,7 @@ dsh-gui-eyes/
 
 设计与测试：docs/design-inventory-delta.md、src/core/inventory.js、tests/inventory.test.js。断言层与场景 YAML 原则不变：一次性交互用 ref，可回放资产用 selector。
 
-- 渠道：GitHub Packages（`@runzhi214/gui-eyes`，D9 修订）。本机 npmjs.org 不通、GHPR 可达（HTTP 301 探测）；gh 已登录 runzhi214（ssh 推送可用），token 无 write:packages → **发布走 GitHub Actions**（workflow secrets.GITHUB_TOKEN 自带 packages:write，免本机 PAT，CI 同跑全量单测）。
+- 渠道：**npmjs 单渠道（2026-11-27 用户拍板，放弃 GHPR）**。`gui-eyes`（裸名，主包）+ `@runzhi214/gui-eyes-dsh`（dsh 接线 bundle，dependencies 自动拉取本体）。历史：首发曾走 GHPR（`@runzhi214/gui-eyes`，因当时本机 npmjs.org 不通）；2026-11-27 npmjs 可达+新 token 后转 npmjs，双渠道并存一日后按用户决策收敛为 npmjs 单渠道——GHPR workflow（release.yml）与 publishConfig 已移除，GitHub 仓仅作源码镜像+CI 测试。GHPR 上的存量版本（@runzhi214/gui-eyes 0.2.0–0.5.0）保留但不再更新。
 - 落地项：package.json 市场化（name/version 0.2.0/keywords/repository/bin 增 `gui-eyes-mcp` 走 PATH/files 打包白名单/publishConfig GHPR）；files 白名单含 `skills/`（消费者可从 node_modules 取 skill）；excluded：tests/evidence/shots/mcp-register（本机绝对路径）/`.npmrc`（华为云镜像属本机，npm 默认不发布）。
 - 消费方事实：GHPR 的 npm registry 对**所有安装要求认证**（公开包也要）——消费机需 PAT（read:packages）配 `.npmrc`；landingzone 侧以此与本地 checkout 解耦（依赖版本号）。
 - 残余：README 接入段补 npm 安装路径；workflow 随镜像仓落地后打 tag `v0.2.0` 触发首发。
