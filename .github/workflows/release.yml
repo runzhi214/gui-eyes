@@ -26,6 +26,7 @@ jobs:
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       - run: pnpm test
-      - run: npm publish
+      # publishConfig 已指向 npmjs(双渠道策略);CI 渠道显式回指 GHPR
+      - run: npm publish --registry=https://npm.pkg.github.com
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
